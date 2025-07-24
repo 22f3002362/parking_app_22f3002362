@@ -1,0 +1,50 @@
+import { createRouter, createWebHistory } from 'vue-router'
+// import Login from '../components/Login.vue'
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/',
+      name: 'home',
+      component: () => import('../components/Landing.vue'),
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('../components/Login.vue'),
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: () => import('../components/Register.vue'),
+    },
+    {
+      path: '/admin-dashboard',
+      name: 'admin-dashboard',
+      component: () => import('../components/AdminDashboard.vue'),
+    },
+    {
+      path: '/parking-management',
+      name: 'parking-management',
+      component: () => import('../components/ParkingManagement.vue'),
+    },
+    {
+      path: '/manage-users',
+      name: 'manage-users',
+      component: () => import('../components/UserManagement.vue'),
+    },
+    {
+      path: '/user-dashboard',
+      name: 'user-dashboard',
+      component: () => import('../components/UserDashboard.vue'),
+    },
+    {
+      path: '/parking-lots',
+      name: 'parking-lots',
+      component: () => import('../components/ParkingLots.vue'),
+    }
+  ],
+})
+
+export default router

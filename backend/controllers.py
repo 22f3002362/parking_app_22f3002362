@@ -1,11 +1,20 @@
 from flask_restful import Resource, Api
 from flask import request
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from models import db, User, ParkingLot, ParkingSpot, ReserveSpot
 from datetime import datetime
 
 class UserResource(Resource):
+    @jwt_required()
     def get(self, user_id=None):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
         if user_id:
+            # Only allow users to access their own data or admin to access any
+            if current_user.role != 'admin' and current_user_id != user_id:
+                return {'msg': 'Access denied'}, 403
+                
             user = User.query.get(user_id)
             if user:
                 return {
@@ -15,11 +24,16 @@ class UserResource(Resource):
                         'username': user.username,
                         'email': user.email,
                         'role': user.role,
-                        'vehicle_number': user.vehicle_number
+                        'vehicle_number': user.vehicle_number,
+                        'phone_number': user.phone_number if user.phone_number else None
                     }
-                }, 201
+                }, 200
             return {'msg': 'User not found'}, 404
         
+        # Only admin can get all users
+        if current_user.role != 'admin':
+            return {'msg': 'Access denied. Admin only.'}, 403
+            
         users = User.query.all()
         user_list = []
         for user in users:
@@ -28,7 +42,8 @@ class UserResource(Resource):
                 'username': user.username,
                 'email': user.email,
                 'role': user.role,
-                'vehicle_number': user.vehicle_number
+                'vehicle_number': user.vehicle_number,
+                'phone_number': user.phone_number
             })
         return {'msg': 'Users retrieved successfully', 'users': user_list}, 200
     
@@ -39,6 +54,7 @@ class UserResource(Resource):
         password = data.get('password')
         role = data.get('role', 'user')
         vehicle_number = data.get('vehicle_number')
+        phone_number = data.get('phone_number', None)
         
         if not email or not username or not password:
             return {'msg': 'Please provide email, username, and password'}, 400
@@ -46,7 +62,18 @@ class UserResource(Resource):
         # Check if user already exists
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
-            return {'msg': 'User already exists'}, 400
+            return {'msg': 'User with this email already exists'}, 400
+        
+        # Check if username already exists
+        existing_username = User.query.filter_by(username=username).first()
+        if existing_username:
+            return {'msg': 'Username already exists'}, 400
+        
+        # Check if vehicle number already exists (only if provided)
+        if vehicle_number:
+            existing_vehicle = User.query.filter_by(vehicle_number=vehicle_number).first()
+            if existing_vehicle:
+                return {'msg': 'Vehicle number already exists'}, 400
         
         # Create new user
         user = User(
@@ -54,7 +81,8 @@ class UserResource(Resource):
             username=username,
             password=password,
             role=role,
-            vehicle_number=vehicle_number
+            vehicle_number=vehicle_number if vehicle_number else None,
+            phone_number=phone_number if 'phone_number' in data else None
         )
         
         try:
@@ -67,14 +95,31 @@ class UserResource(Resource):
                     'username': user.username,
                     'email': user.email,
                     'role': user.role,
-                    'vehicle_number': user.vehicle_number
+                    'vehicle_number': user.vehicle_number,
+                    'phone_number': user.phone_number
                 }
             }, 201
         except Exception as e:
             db.session.rollback()
-            return {'msg': 'Error creating user', 'error': str(e)}, 500
+            error_msg = str(e)
+            if 'UNIQUE constraint failed: user.email' in error_msg:
+                return {'msg': 'Email already exists'}, 400
+            elif 'UNIQUE constraint failed: user.username' in error_msg:
+                return {'msg': 'Username already exists'}, 400
+            elif 'UNIQUE constraint failed: user.vehicle_number' in error_msg:
+                return {'msg': 'Vehicle number already exists'}, 400
+            else:
+                return {'msg': 'Error creating user', 'error': str(e)}, 500
     
+    @jwt_required()
     def put(self, user_id):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # Only allow users to update their own data or admin to update any
+        if current_user.role != 'admin' and current_user_id != user_id:
+            return {'msg': 'Access denied'}, 403
+            
         user = User.query.get(user_id)
         if not user:
             return {'msg': 'User not found'}, 404
@@ -86,10 +131,12 @@ class UserResource(Resource):
             user.email = data['email']
         if 'password' in data:
             user.password = data['password']
-        if 'role' in data:
+        if 'role' in data and current_user.role == 'admin':
             user.role = data['role']
         if 'vehicle_number' in data:
             user.vehicle_number = data['vehicle_number']
+        if 'phone_number' in data:
+            user.phone_number = data['phone_number']
         
         try:
             db.session.commit()
@@ -100,14 +147,23 @@ class UserResource(Resource):
                     'username': user.username,
                     'email': user.email,
                     'role': user.role,
-                    'vehicle_number': user.vehicle_number
+                    'vehicle_number': user.vehicle_number,
+                    'phone_number': user.phone_number
                 }
             }, 200
         except Exception as e:
             db.session.rollback()
             return {'msg': 'Error updating user', 'error': str(e)}, 500
     
+    @jwt_required()
     def delete(self, user_id):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # Only admin can delete users
+        if current_user.role != 'admin':
+            return {'msg': 'Access denied. Admin only.'}, 403
+            
         user = User.query.get(user_id)
         if not user:
             return {'msg': 'User not found'}, 404
@@ -155,7 +211,15 @@ class ParkingLotResource(Resource):
             })
         return {'msg': 'Parking lots retrieved successfully', 'lots': lot_list}, 200
     
+    @jwt_required()
     def post(self):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # Only admin can create parking lots
+        if current_user.role != 'admin':
+            return {'msg': 'Access denied. Admin only.'}, 403
+        
         data = request.get_json()
         location_name = data.get('location_name')
         price = data.get('price')
@@ -205,7 +269,15 @@ class ParkingLotResource(Resource):
             db.session.rollback()
             return {'msg': 'Error creating parking lot', 'error': str(e)}, 500
     
+    @jwt_required()
     def put(self, lot_id):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # Only admin can update parking lots
+        if current_user.role != 'admin':
+            return {'msg': 'Access denied. Admin only.'}, 403
+        
         lot = ParkingLot.query.get(lot_id)
         if not lot:
             return {'msg': 'Parking lot not found'}, 404
@@ -242,7 +314,15 @@ class ParkingLotResource(Resource):
             db.session.rollback()
             return {'msg': 'Error updating parking lot', 'error': str(e)}, 500
     
+    @jwt_required()
     def delete(self, lot_id):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # Only admin can delete parking lots
+        if current_user.role != 'admin':
+            return {'msg': 'Access denied. Admin only.'}, 403
+        
         lot = ParkingLot.query.get(lot_id)
         if not lot:
             return {'msg': 'Parking lot not found'}, 404
@@ -374,14 +454,22 @@ class ReserveSpotResource(Resource):
             })
         return {'msg': 'Reservations retrieved successfully', 'reservations': reservation_list}, 200
     
+    @jwt_required()
     def post(self):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
         data = request.get_json()
         spot_id = data.get('spot_id')
-        user_id = data.get('user_id')
+        user_id = data.get('user_id', current_user_id)  # Use current user if not specified
         parking_time = data.get('parking_time')
         leaving_time = data.get('leaving_time')
         
-        if not all([spot_id, user_id, parking_time, leaving_time]):
+        # Users can only make reservations for themselves (unless admin)
+        if current_user.role != 'admin' and current_user_id != user_id:
+            return {'msg': 'Access denied. You can only make reservations for yourself.'}, 403
+        
+        if not all([spot_id, parking_time, leaving_time]):
             return {'msg': 'Please provide all required fields'}, 400
         
         # Check if spot exists and is available
@@ -445,10 +533,18 @@ class ReserveSpotResource(Resource):
             db.session.rollback()
             return {'msg': 'Error creating reservation', 'error': str(e)}, 500
     
+    @jwt_required()
     def delete(self, reservation_id):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
         reservation = ReserveSpot.query.get(reservation_id)
         if not reservation:
             return {'msg': 'Reservation not found'}, 404
+        
+        # Users can only cancel their own reservations (unless admin)
+        if current_user.role != 'admin' and current_user_id != reservation.user_id:
+            return {'msg': 'Access denied. You can only cancel your own reservations.'}, 403
         
         try:
             # Get the spot and update its status
@@ -472,34 +568,66 @@ class ReserveSpotResource(Resource):
 
 class UserReservationsResource(Resource):
     
+    @jwt_required()
     def get(self, user_id):
         """Get all reservations for a specific user"""
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        print(f"UserReservationsResource: user_id parameter: {user_id}, type: {type(user_id)}")
+        print(f"Current user ID: {current_user_id}, Current user: {current_user}")
+        
+        # Convert user_id to int if it's a string
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return {'msg': 'Invalid user ID format'}, 400
+        
+        # Users can only view their own reservations (unless admin)
+        if current_user.role != 'admin' and current_user_id != user_id:
+            return {'msg': 'Access denied. You can only view your own reservations.'}, 403
+        
         user = User.query.get(user_id)
         if not user:
             return {'msg': 'User not found'}, 404
         
-        reservations = ReserveSpot.query.filter_by(user_id=user_id).all()
+        print(f"Fetching reservations for user: {user.username}")
+        
+        try:
+            reservations = ReserveSpot.query.filter_by(user_id=user_id).all()
+            print(f"Found {len(reservations)} reservations")
+        except Exception as e:
+            print(f"Database error when fetching reservations: {str(e)}")
+            return {'msg': 'Database error occurred', 'error': str(e)}, 500
+        
         reservation_list = []
         for reservation in reservations:
-            # Get spot and lot information
-            spot = ParkingSpot.query.get(reservation.spot_id)
-            lot = ParkingLot.query.get(spot.lot_id) if spot else None
-            
-            reservation_list.append({
-                'id': reservation.id,
-                'spot_id': reservation.spot_id,
-                'lot_name': lot.location_name if lot else 'Unknown',
-                'lot_address': lot.address if lot else 'Unknown',
-                'parking_time': reservation.parking_time.isoformat(),
-                'leaving_time': reservation.leaving_time.isoformat(),
-                'parking_cost': reservation.parking_cost
-            })
+            try:
+                print(f"Processing reservation: {reservation.id}")
+                # Get spot and lot information
+                spot = ParkingSpot.query.get(reservation.spot_id)
+                lot = ParkingLot.query.get(spot.lot_id) if spot else None
+                
+                reservation_list.append({
+                    'id': reservation.id,
+                    'spot_id': reservation.spot_id,
+                    'lot_name': lot.location_name if lot else 'Unknown',
+                    'lot_address': lot.address if lot else 'Unknown',
+                    'parking_time': reservation.parking_time.isoformat(),
+                    'leaving_time': reservation.leaving_time.isoformat(),
+                    'parking_cost': reservation.parking_cost
+                })
+            except Exception as e:
+                print(f"Error processing reservation {reservation.id}: {str(e)}")
+                continue  # Skip this reservation but continue with others
         
-        return {
+        result = {
             'msg': 'User reservations retrieved successfully',
             'user': user.username,
             'reservations': reservation_list
-        }, 200
+        }
+        print(f"Returning result: {result}")
+        return result, 200
 
 
 class LoginResource(Resource):
@@ -516,8 +644,12 @@ class LoginResource(Resource):
         if not user or user.password != password:
             return {'msg': 'Invalid credentials'}, 401
         
+        # Create JWT token with string identity
+        access_token = create_access_token(identity=str(user.id))
+        
         return {
             'msg': 'Login successful',
+            'token': access_token,
             'user': {
                 'id': user.id,
                 'username': user.username,
@@ -526,3 +658,64 @@ class LoginResource(Resource):
                 'vehicle_number': user.vehicle_number
             }
         }, 200
+
+
+class RegisterResource(Resource):
+    
+    def post(self):
+        data = request.get_json()
+        email = data.get('email')
+        username = data.get('username')
+        password = data.get('password')
+        role = data.get('role', 'user')
+        vehicle_number = data.get('vehicle_number')
+        
+        if not email or not username or not password:
+            return {'msg': 'Please provide email, username, and password'}, 400
+        
+        # Check if user already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return {'msg': 'User with this email already exists'}, 409
+        
+        # Check if username already exists
+        existing_username = User.query.filter_by(username=username).first()
+        if existing_username:
+            return {'msg': 'Username already exists'}, 409
+        
+        # Check if vehicle number already exists (only if provided)
+        if vehicle_number:
+            existing_vehicle = User.query.filter_by(vehicle_number=vehicle_number).first()
+            if existing_vehicle:
+                return {'msg': 'Vehicle number already exists'}, 409
+        
+        # Create new user
+        user = User(
+            email=email,
+            username=username,
+            password=password,
+            role=role,
+            vehicle_number=vehicle_number if vehicle_number else None
+        )
+        
+        try:
+            db.session.add(user)
+            db.session.commit()
+            
+            # Create JWT token for immediate login with string identity
+            access_token = create_access_token(identity=str(user.id))
+            
+            return {
+                'msg': 'User registered successfully',
+                'token': access_token,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role,
+                    'vehicle_number': user.vehicle_number
+                }
+            }, 201
+        except Exception as e:
+            db.session.rollback()
+            return {'msg': 'Registration failed. Please try again.'}, 500

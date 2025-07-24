@@ -9,6 +9,11 @@ class User(db.Model):
     role = db.Column(db.String(50), nullable=False, default='user')
     password = db.Column(db.String(200), nullable=False)
     vehicle_number = db.Column(db.String(20), unique=True, nullable=True)
+    phone_number = db.Column(db.String(20), unique=True, nullable=True)
+    
+    # Relationships
+    reservations = db.relationship('ReserveSpot', backref='user', lazy=True)
+    parking_spots = db.relationship('ParkingSpot', backref='current_user', lazy=True)
 
 
 class ParkingLot(db.Model):
@@ -19,6 +24,9 @@ class ParkingLot(db.Model):
     pincode = db.Column(db.String(10), nullable=False)
     number_of_slots = db.Column(db.Integer, nullable=False)
     available_slots = db.Column(db.Integer, nullable=False)
+    
+    # Relationships
+    parking_spots = db.relationship('ParkingSpot', backref='parking_lot', lazy=True)
 
 
 class ParkingSpot(db.Model):  # Fixed: Capital P in ParkingSpot
@@ -27,6 +35,9 @@ class ParkingSpot(db.Model):  # Fixed: Capital P in ParkingSpot
     lot_id = db.Column(db.Integer, db.ForeignKey('parking_lot.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     status = db.Column(db.String(20), nullable=False, default='available')
+    
+    # Relationships
+    reservations = db.relationship('ReserveSpot', backref='parking_spot', lazy=True)
 
 
 class ReserveSpot(db.Model):
