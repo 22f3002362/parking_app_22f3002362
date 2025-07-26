@@ -4,10 +4,12 @@
     <nav class="admin-navbar">
       <div class="navbar-content">
         <div class="navbar-brand">
-          <div class="brand-logo">P</div>
-          <div class="brand-info">
-            <h3 class="brand-name">ParkEase</h3>
-            <span class="brand-subtitle">Admin Portal</span>
+          <div class="brand-logo">
+            <img src="../assets/P.png" alt="ParkEase Logo" class="logo-img">
+            <div class="brand-text">
+              <h1>ParkEase</h1>
+              <p>Admin Portal</p>
+            </div>
           </div>
         </div>
         
@@ -33,22 +35,19 @@
           
           <div class="navbar-actions">
             <div class="admin-profile">
-              <div class="profile-avatar">
+              <div class="admin-avatar">
                 <i class="bi bi-person-circle"></i>
               </div>
-              <div class="profile-info">
-                <span class="profile-name">{{ currentUser?.username || 'Admin' }}</span>
-                <span class="profile-role">Administrator</span>
+              <div class="admin-info">
+                <span class="admin-name">{{ currentUser?.username || 'Admin' }}</span>
+                <span class="admin-role">Administrator</span>
               </div>
             </div>
-            <button class="logout-btn" @click="handleLogout" title="Logout">
+            <button @click="handleLogout" class="logout-btn">
               <i class="bi bi-box-arrow-right"></i>
+              <span>Logout</span>
             </button>
           </div>
-        </div>
-        
-        <div class="mobile-menu-toggle" @click="toggleMobileMenu">
-          <i class="bi bi-list"></i>
         </div>
       </div>
     </nav>
@@ -112,10 +111,6 @@
             <i class="bi bi-geo-alt"></i>
             <h3>No parking lots found</h3>
             <p>Start by adding your first parking lot</p>
-            <button class="cta-button primary" @click="openAddLotModal">
-              <i class="bi bi-plus-circle-fill"></i>
-              Add First Lot
-            </button>
           </div>
           <div v-else class="data-table">
             <table>
@@ -483,6 +478,42 @@
         </form>
       </div>
     </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div v-if="showLogoutModal" class="modal-overlay" @click="cancelLogout">
+      <div class="modal-container logout-modal" @click.stop>
+        <div class="modal-header">
+          <div class="modal-title-section">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to logout from your account?</p>
+          </div>
+          <button class="close-btn" @click="cancelLogout">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+
+        <div class="logout-modal-content">
+          <div class="logout-icon">
+            <i class="bi bi-box-arrow-right"></i>
+          </div>
+          <div class="logout-message">
+            <h4>You will be logged out</h4>
+            <p>You'll need to sign in again to access the admin dashboard</p>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="cta-button secondary" @click="cancelLogout">
+            <i class="bi bi-x-circle"></i>
+            Cancel
+          </button>
+          <button type="button" class="cta-button primary logout-confirm-btn" @click="confirmLogout">
+            <i class="bi bi-box-arrow-right"></i>
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -506,6 +537,7 @@ const isMobileMenuOpen = ref(false);
 // Modal state
 const showLotModal = ref(false);
 const showUserModal = ref(false);
+const showLogoutModal = ref(false);
 const isEditMode = ref(false);
 const isUserEditMode = ref(false);
 const lotForm = ref({
@@ -546,11 +578,18 @@ const toggleMobileMenu = () => {
 
 // Logout functionality
 const handleLogout = () => {
-  if (confirm('Are you sure you want to logout?')) {
-    localStorage.clear();
-    toast.success('Logged out successfully');
-    router.push('/login');
-  }
+  showLogoutModal.value = true;
+};
+
+const confirmLogout = () => {
+  localStorage.clear();
+  toast.success('Logged out successfully');
+  router.push('/login');
+  showLogoutModal.value = false;
+};
+
+const cancelLogout = () => {
+  showLogoutModal.value = false;
 };
 
 // Check authentication before loading data
@@ -657,7 +696,7 @@ const summaryCards = computed(() => [
   },
   {
     icon: "bi bi-people-fill",
-    value: users.value.length,
+    value: users.value.length - 1,  // THis -1 will exclude the admin
     title: "Registered Users"
   }
 ]);
@@ -768,7 +807,7 @@ const closeUserModal = () => {
     username: "",
     email: "",
     password: "",
-    phone: "",
+    phone_number: "",
     vehicle_number: "",
     role: "user"
   };
@@ -781,7 +820,12 @@ const submitUser = async () => {
   try {
     if (isUserEditMode.value) {
       console.log('Updating user:', userForm.value);
-      await api.updateUser(userForm.value.id, userForm.value);
+      // Create a copy of the form data and exclude password if it's empty
+      const updateData = { ...userForm.value };
+      if (!updateData.password || updateData.password.trim() === '') {
+        delete updateData.password;
+      }
+      await api.updateUser(userForm.value.id, updateData);
       toast.success('User updated successfully!');
     } else {
       console.log('Creating user:', userForm.value);
@@ -858,44 +902,45 @@ onMounted(() => {
 }
 
 .navbar-content {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0.75rem 1.5rem;
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
 }
 
 .navbar-brand {
   display: flex;
   align-items: center;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
   gap: 1rem;
 }
 
-.navbar-brand .brand-logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  font-weight: 900;
-  color: #ffffff;
-  box-shadow: 0 8px 16px rgba(0, 168, 232, 0.3);
+.brand-logo .logo-img {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.brand-info .brand-name {
-  font-size: 1.3rem;
+.brand-text h1 {
+  color: white;
+  font-size: 1.7rem;
   font-weight: 700;
-  color: #ffffff;
   margin: 0;
+  letter-spacing: -0.02em;
 }
 
-.brand-info .brand-subtitle {
-  font-size: 0.8rem;
+.brand-text p {
   color: #00a8e8;
+  font-size: 0.8rem;
+  margin: 0;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -904,7 +949,7 @@ onMounted(() => {
 .navbar-menu {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 .nav-links {
@@ -915,90 +960,85 @@ onMounted(() => {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  color: rgba(255, 255, 255, 0.7);
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
-  transition: all 0.3s ease;
+  border-radius: 30px;
   font-weight: 500;
-  font-size: 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.nav-link:hover, .nav-link.active, .nav-link.router-link-active {
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  color: #ffffff;
+.nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 168, 232, 0.3);
+}
+
+.nav-link.active {
+  color: white;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link i {
+  font-size: 1.1rem;
 }
 
 .navbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1.5rem;
 }
 
 .admin-profile {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.8rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 0.75rem;
+  color: white;
 }
 
-.profile-avatar {
-  font-size: 1.3rem;
-  color: #00a8e8;
+.admin-avatar i {
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.profile-info .profile-name {
+.admin-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-name {
   font-weight: 600;
-  color: #ffffff;
-  display: block;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
-.profile-info .profile-role {
-  font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.6);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.admin-role {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .logout-btn {
-  padding: 0.5rem;
-  background: rgba(255, 107, 107, 0.15);
-  border: 1px solid rgba(255, 107, 107, 0.25);
-  color: #ff6b6b;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .logout-btn:hover {
-  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
-  color: #ffffff;
-  transform: translate(-1px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
 }
 
-.mobile-menu-toggle {
-  display: none;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: #ffffff;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 1.2rem;
-}
 
 /* Animated Background */
 .bg-animation {
@@ -1068,51 +1108,6 @@ onMounted(() => {
   height: 4px;
   background: linear-gradient(135deg, #00a8e8, #ffffff);
   margin: 1rem auto;
-}
-
-.brand-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.brand-logo {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 3rem;
-  font-weight: 900;
-  color: #000;
-  box-shadow: 0 20px 40px rgba(255, 215, 0, 0.3);
-  animation: logoGlow 3s ease-in-out infinite;
-}
-
-@keyframes logoGlow {
-  0%, 100% { box-shadow: 0 20px 40px rgba(255, 215, 0, 0.3); }
-  50% { box-shadow: 0 25px 50px rgba(255, 215, 0, 0.5); }
-}
-
-.brand-title {
-  font-size: 3.5rem;
-  font-weight: 900;
-  background: linear-gradient(135deg, #00a8e8, #ffffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin: 0;
-  letter-spacing: -2px;
-}
-
-.brand-subtitle {
-  font-size: 1.2rem;
-  color: rgba(255, 255, 255, 0.7);
-  margin: 0;
-  font-weight: 300;
 }
 
 /* Stats Section */
@@ -1667,14 +1662,100 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
+/* Logout Modal Specific Styles */
+.logout-modal {
+  max-width: 450px;
+}
+
+.logout-modal-content {
+  padding: 2rem;
+  text-align: center;
+}
+
+.logout-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 1.5rem;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: logoutIconPulse 2s ease-in-out infinite;
+}
+
+.logout-icon i {
+  font-size: 2.5rem;
+  color: white;
+}
+
+@keyframes logoutIconPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 15px rgba(255, 107, 107, 0);
+  }
+}
+
+.logout-message h4 {
+  color: #ffffff;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.logout-message p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.logout-confirm-btn {
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f) !important;
+  border-color: #ff6b6b !important;
+}
+
+.logout-confirm-btn:hover {
+  background: linear-gradient(135deg, #ff5252, #e53e3e) !important;
+  box-shadow: 0 8px 25px rgba(255, 107, 107, 0.35) !important;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
-  .navbar-content { padding: 0.5rem 1rem; }
-  .navbar-menu { gap: 1rem; }
-  .nav-links { display: none; gap: 0.3rem; }
-  .nav-link span { display: none; }
-  .mobile-menu-toggle { display: flex; }
-  .main-content { padding: 1rem; padding-top: 65px; }
+  .navbar-content {
+    padding: 0 1rem;
+    height: 70px;
+  }
+  
+  .navbar-menu {
+    gap: 1rem;
+  }
+  
+  .nav-links {
+    gap: 0.25rem;
+  }
+  
+  .nav-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  .nav-link span {
+    display: none;
+  }
+  
+  .admin-info {
+    display: none;
+  }
+  
+  .logout-btn span {
+    display: none;
+  }
+  
+  .main-content { padding: 1rem; padding-top: 80px; }
   .main-title { font-size: 2rem; }
   .hero-section { padding: 2rem 1rem; }
   .stats-grid { grid-template-columns: 1fr; gap: 1rem; }
@@ -1685,19 +1766,26 @@ onMounted(() => {
   .modal-header { padding: 1.5rem; flex-direction: column; text-align: center; gap: 1rem; }
   .cta-button { width: 100%; justify-content: center; }
   .hero-stats { gap: 2rem; }
-  .navbar-actions { gap: 0.5rem; }
-  .admin-profile { padding: 0.25rem 0.5rem; }
-  .profile-info { display: none; }
 }
 
 @media (max-width: 480px) {
+  .brand-text h1 {
+    font-size: 1.5rem;
+  }
+  
+  .brand-text p {
+    display: none;
+  }
+  
+  .navbar-actions {
+    gap: 0.5rem;
+  }
+  
   .admin-dashboard-container { padding: 0; }
   .main-title { font-size: 1.8rem; }
   .main-content { padding: 0.5rem; padding-top: 60px; }
   .hero-section { padding: 1.5rem 1rem; }
   .section-container { padding: 1.5rem 1rem; }
   .stat-card { padding: 1.5rem; }
-  .navbar-brand .brand-info { display: none; }
-  .navbar-actions .admin-profile .profile-info { display: none; }
 }
 </style>

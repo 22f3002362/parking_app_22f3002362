@@ -4,10 +4,12 @@
     <nav class="admin-navbar">
       <div class="navbar-content">
         <div class="navbar-brand">
-          <div class="brand-logo">P</div>
-          <div class="brand-info">
-            <h3 class="brand-name">ParkEase</h3>
-            <span class="brand-subtitle">User Management</span>
+          <div class="brand-logo">
+            <img src="../assets/P.png" alt="ParkEase Logo" class="logo-img">
+            <div class="brand-text">
+              <h1>ParkEase</h1>
+              <p>User Management</p>
+            </div>
           </div>
         </div>
         
@@ -33,22 +35,19 @@
           
           <div class="navbar-actions">
             <div class="admin-profile">
-              <div class="profile-avatar">
+              <div class="admin-avatar">
                 <i class="bi bi-person-circle"></i>
               </div>
-              <div class="profile-info">
-                <span class="profile-name">{{ currentUser?.username || 'Admin' }}</span>
-                <span class="profile-role">Administrator</span>
+              <div class="admin-info">
+                <span class="admin-name">{{ currentUser?.username || 'Admin' }}</span>
+                <span class="admin-role">Administrator</span>
               </div>
             </div>
-            <button class="logout-btn" @click="handleLogout" title="Logout">
+            <button @click="handleLogout" class="logout-btn">
               <i class="bi bi-box-arrow-right"></i>
+              <span>Logout</span>
             </button>
           </div>
-        </div>
-        
-        <div class="mobile-menu-toggle" @click="toggleMobileMenu">
-          <i class="bi bi-list"></i>
         </div>
       </div>
     </nav>
@@ -700,44 +699,45 @@ onMounted(() => {
 }
 
 .navbar-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1.5rem;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .navbar-brand {
   display: flex;
   align-items: center;
-  gap: 1rem;
 }
 
 .brand-logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  border-radius: 50%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  font-weight: 900;
-  color: #ffffff;
-  box-shadow: 0 8px 16px rgba(0, 168, 232, 0.3);
+  gap: 1rem;
 }
 
-.brand-info h3 {
-  margin: 0;
-  font-size: 1.3rem;
+.brand-logo .logo-img {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.brand-text h1 {
+  color: white;
+  font-size: 1.7rem;
   font-weight: 700;
-  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.02em;
 }
 
-.brand-subtitle {
-  font-size: 0.8rem;
+.brand-text p {
   color: #00a8e8;
+  font-size: 0.8rem;
+  margin: 0;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -746,7 +746,7 @@ onMounted(() => {
 .navbar-menu {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 .nav-links {
@@ -757,84 +757,83 @@ onMounted(() => {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  color: rgba(255, 255, 255, 0.7);
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
-  transition: all 0.3s ease;
+  border-radius: 30px;
   font-weight: 500;
-  font-size: 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.nav-link:hover, .nav-link.active {
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  color: #ffffff;
+.nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 168, 232, 0.3);
+}
+
+.nav-link.active {
+  color: white;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link i {
+  font-size: 1.1rem;
 }
 
 .navbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1.5rem;
 }
 
 .admin-profile {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.8rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 0.75rem;
+  color: white;
 }
 
-.profile-avatar i {
-  font-size: 1.3rem;
-  color: #00a8e8;
+.admin-avatar i {
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.profile-info .profile-name {
+.admin-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-name {
   font-weight: 600;
-  color: #ffffff;
-  display: block;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
-.profile-info .profile-role {
-  font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.6);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.admin-role {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .logout-btn {
-  padding: 0.5rem;
-  background: rgba(255, 107, 107, 0.15);
-  border: 1px solid rgba(255, 107, 107, 0.25);
-  color: #ff6b6b;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .logout-btn:hover {
-  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
-}
-
-.mobile-menu-toggle {
-  display: none;
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #ffffff;
-  cursor: pointer;
 }
 
 /* Animated Background */
@@ -1638,15 +1637,33 @@ onMounted(() => {
 /* Responsive Design */
 @media (max-width: 768px) {
   .navbar-content {
-    padding: 1rem;
+    padding: 0 1rem;
+    height: 70px;
   }
   
   .navbar-menu {
+    gap: 1rem;
+  }
+  
+  .nav-links {
+    gap: 0.25rem;
+  }
+  
+  .nav-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  .nav-link span {
     display: none;
   }
   
-  .mobile-menu-toggle {
-    display: block;
+  .admin-info {
+    display: none;
+  }
+  
+  .logout-btn span {
+    display: none;
   }
   
   .main-title {
@@ -1718,6 +1735,18 @@ onMounted(() => {
 }
 
 @media (max-width: 480px) {
+  .brand-text h1 {
+    font-size: 1.5rem;
+  }
+  
+  .brand-text p {
+    display: none;
+  }
+  
+  .navbar-actions {
+    gap: 0.5rem;
+  }
+  
   .main-title {
     font-size: 1.8rem;
   }

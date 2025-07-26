@@ -46,7 +46,7 @@ class ReserveSpot(db.Model):
     spot_id = db.Column(db.Integer, db.ForeignKey('parking_spot.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     parking_time = db.Column(db.DateTime, nullable=False)
-    leaving_time = db.Column(db.DateTime, nullable=False)
+    leaving_time = db.Column(db.DateTime, nullable=True)  # Changed to nullable=True for manual release system
     parking_cost = db.Column(db.Float, nullable=False)
 
 

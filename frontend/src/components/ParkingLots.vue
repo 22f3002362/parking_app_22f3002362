@@ -4,10 +4,12 @@
     <nav class="admin-navbar">
       <div class="navbar-content">
         <div class="navbar-brand">
-          <div class="brand-logo">P</div>
-          <div class="brand-info">
-            <h3 class="brand-name">ParkEase</h3>
-            <span class="brand-subtitle">Parking Lots</span>
+          <div class="brand-logo">
+            <img src="../assets/P.png" alt="ParkEase Logo" class="logo-img">
+            <div class="brand-text">
+              <h1>ParkEase</h1>
+              <p>Parking Lots</p>
+            </div>
           </div>
         </div>
         
@@ -33,22 +35,19 @@
           
           <div class="navbar-actions">
             <div class="admin-profile">
-              <div class="profile-avatar">
+              <div class="admin-avatar">
                 <i class="bi bi-person-circle"></i>
               </div>
-              <div class="profile-info">
-                <span class="profile-name">{{ currentUser?.username || 'Admin' }}</span>
-                <span class="profile-role">Administrator</span>
+              <div class="admin-info">
+                <span class="admin-name">{{ currentUser?.username || 'Admin' }}</span>
+                <span class="admin-role">Administrator</span>
               </div>
             </div>
-            <button class="logout-btn" @click="handleLogout" title="Logout">
+            <button @click="handleLogout" class="logout-btn">
               <i class="bi bi-box-arrow-right"></i>
+              <span>Logout</span>
             </button>
           </div>
-        </div>
-        
-        <div class="mobile-menu-toggle" @click="toggleMobileMenu">
-          <i class="bi bi-list"></i>
         </div>
       </div>
     </nav>
@@ -108,10 +107,6 @@
             <i class="bi bi-geo-alt"></i>
             <h3>No parking lots found</h3>
             <p>No parking lots have been created yet</p>
-            <router-link to="/admin-dashboard" class="cta-button primary">
-              <i class="bi bi-arrow-left"></i>
-              Back to Dashboard
-            </router-link>
           </div>
           
           <div v-else class="lots-grid">
@@ -368,41 +363,91 @@
           <div v-else class="popup-details">
             <!-- Status Badge -->
             <div class="popup-status" :class="selectedSlotDetails.status">
-              <i :class="selectedSlotDetails.status === 'available' ? 'bi bi-check-circle' : 'bi bi-car-front-fill'"></i>
-              <span>{{ selectedSlotDetails.status === 'available' ? 'Available' : 'Occupied' }}</span>
+              <i :class="getStatusIcon(selectedSlotDetails.status)"></i>
+              <span>{{ getStatusText(selectedSlotDetails.status) }}</span>
             </div>
 
             <!-- Available Slot Info -->
             <div v-if="selectedSlotDetails.status === 'available'" class="popup-available">
-              <div class="popup-message">No user assigned</div>
+              <div class="popup-message">This slot is available for booking</div>
               <div class="popup-rate">₹{{ selectedLot?.price || 0 }}/hour</div>
             </div>
 
             <!-- Occupied Slot Info -->
-            <div v-else-if="selectedSlotDetails.status === 'occupied' && selectedSlotDetails.user" class="popup-occupied">
-              <div class="user-info">
-                <div class="info-row">
-                  <i class="bi bi-person"></i>
-                  <span>{{ selectedSlotDetails.user.username || 'N/A' }}</span>
-                </div>
-                <div class="info-row">
-                  <i class="bi bi-envelope"></i>
-                  <span>{{ selectedSlotDetails.user.email || 'N/A' }}</span>
-                </div>
-                <div class="info-row">
-                  <i class="bi bi-telephone"></i>
-                  <span>{{ selectedSlotDetails.user.phone || 'N/A' }}</span>
-                </div>
-                <div class="info-row vehicle">
-                  <i class="bi bi-car-front"></i>
-                  <span>{{ selectedSlotDetails.user.vehicle_number || 'N/A' }}</span>
-                </div>
+            <div v-else-if="selectedSlotDetails.status === 'occupied'" class="popup-occupied">
+              <!-- Show user details if available -->
+              <div v-if="selectedSlotDetails.user" class="user-info">
+              <div class="info-row">
+                <i class="bi bi-person"></i>
+                <span>{{ selectedSlotDetails.user.username || 'N/A' }}</span>
               </div>
-              <div class="booking-time">
-                <i class="bi bi-clock"></i>
-                <span>{{ selectedSlotDetails.booking_time ? new Date(selectedSlotDetails.booking_time).toLocaleString() : 'N/A' }}</span>
+              <div class="info-row">
+                <i class="bi bi-envelope"></i>
+                <span>{{ selectedSlotDetails.user.email || 'N/A' }}</span>
               </div>
+              <div class="info-row">
+                <i class="bi bi-telephone"></i>
+                <span>{{ selectedSlotDetails.user.phone_number || 'N/A' }}</span>
+              </div>
+              <div class="info-row vehicle">
+                <i class="bi bi-car-front"></i>
+                <span>{{ selectedSlotDetails.user.vehicle_number || 'N/A' }}</span>
+              </div>
+              </div>
+              
+              <!-- Show booking time if available -->
+              <div v-if="selectedSlotDetails.booking_time || selectedSlotDetails.created_at" class="booking-time">
+              <i class="bi bi-clock"></i>
+              <span>Booked: {{ formatBookingTime() }}</span>
+              </div>
+              
+              <!-- Show duration if available -->
+              <div v-if="selectedSlotDetails.booking_time || selectedSlotDetails.created_at" class="booking-time">
+              <i class="bi bi-stopwatch"></i>
+              <span>Duration: {{ calculateDuration() }}</span>
+              </div>
+              
+              <!-- Show generic occupied message if no user details -->
+              <div v-if="!selectedSlotDetails.user" class="popup-message">
+              This slot is currently occupied
+              </div>
+              
               <div class="popup-rate">₹{{ selectedLot?.price || 0 }}/hour</div>
+            </div>
+
+            <!-- Reserved Slot Info -->
+            <div v-else-if="selectedSlotDetails.status === 'reserved'" class="popup-reserved">
+              <!-- Show user details if available -->
+              <div v-if="selectedSlotDetails.user" class="user-info">
+              <div class="info-row">
+                <i class="bi bi-person"></i>
+                <span>{{ selectedSlotDetails.user.username || 'N/A' }}</span>
+              </div>
+              <div class="info-row">
+                <i class="bi bi-envelope"></i>
+                <span>{{ selectedSlotDetails.user.email || 'N/A' }}</span>
+              </div>
+              <div class="info-row">
+                <i class="bi bi-telephone"></i>
+                <span>{{ selectedSlotDetails.user.phone_number || 'N/A' }}</span>
+              </div>
+              <div class="info-row vehicle">
+                <i class="bi bi-car-front"></i>
+                <span>{{ selectedSlotDetails.user.vehicle_number || 'N/A' }}</span>
+              </div>
+              </div>
+              
+              <!-- Show generic reserved message if no user details -->
+              <div v-if="!selectedSlotDetails.user" class="popup-message">
+              This slot is currently reserved
+              </div>
+              
+              <div class="popup-rate">₹{{ selectedLot?.price || 0 }}/hour</div>
+            </div>
+
+            <!-- Fallback for unknown status -->
+            <div v-else class="popup-message">
+              Status information not available
             </div>
           </div>
         </div>
@@ -809,22 +854,35 @@ const viewSlotDetails = async (spot) => {
   
   try {
     if (spot.id && !spot.id.toString().startsWith('mock-')) {
-      // Fetch real spot details from API
+      // Fetch real spot details from API using the correct endpoint
       console.log(`Fetching details for spot ${spot.id}`)
-      const spotResponse = await api.getParkingSpotDetails(spot.id)
+      const spotResponse = await api.getParkingSpot(spot.id)
       console.log('Spot details response:', spotResponse)
       
-      // Also fetch user details if spot is occupied
+      // Also fetch user details if spot is occupied/reserved and has user_id
       if (spotResponse.spot && spotResponse.spot.user_id) {
-        const userResponse = await api.getUserDetails(spotResponse.spot.user_id)
-        console.log('User details response:', userResponse)
-        
-        selectedSlotDetails.value = {
-          ...spot,
-          ...spotResponse.spot,
-          user: userResponse.user || null,
-          loading: false,
-          error: null
+        try {
+          console.log(`Fetching user details for user_id: ${spotResponse.spot.user_id}`)
+          const userResponse = await api.getUser(spotResponse.spot.user_id)
+          console.log('User details response:', userResponse)
+          
+          selectedSlotDetails.value = {
+            ...spot,
+            ...spotResponse.spot,
+            user: userResponse.user || null,
+            loading: false,
+            error: null
+          }
+        } catch (userError) {
+          console.error('Error fetching user details:', userError)
+          // Show spot details without user info if user fetch fails
+          selectedSlotDetails.value = {
+            ...spot,
+            ...spotResponse.spot,
+            user: null,
+            loading: false,
+            error: `Slot is ${spotResponse.spot.status} but user details unavailable (${userError.response?.status === 401 ? 'Access denied' : 'User not found'})`
+          }
         }
       } else {
         selectedSlotDetails.value = {
@@ -835,13 +893,21 @@ const viewSlotDetails = async (spot) => {
           error: null
         }
       }
-    } 
+    } else {
+      // For mock data, just show the spot as-is
+      selectedSlotDetails.value = {
+        ...spot,
+        loading: false,
+        error: null,
+        user: null
+      }
+    }
   } catch (error) {
     console.error('Error fetching slot details:', error)
     selectedSlotDetails.value = {
       ...spot,
       loading: false,
-      error: 'Failed to load slot details. Please try again.'
+      error: `Failed to load slot details: ${error.response?.data?.msg || error.message || 'Please try again.'}`
     }
   }
 }
@@ -859,6 +925,42 @@ const handleLogout = () => {
 const toggleMobileMenu = () => {
   // Handle mobile menu toggle
   console.log('Toggle mobile menu')
+}
+
+// Helper functions for status display
+const getStatusIcon = (status) => {
+  switch (status) {
+    case 'available':
+      return 'bi bi-check-circle'
+    case 'occupied':
+      return 'bi bi-car-front-fill'
+    case 'reserved':
+      return 'bi bi-bookmark-fill'
+    default:
+      return 'bi bi-question-circle'
+  }
+}
+
+const getStatusText = (status) => {
+  switch (status) {
+    case 'available':
+      return 'Available'
+    case 'occupied':
+      return 'Occupied'
+    case 'reserved':
+      return 'Reserved'
+    default:
+      return 'Unknown'
+  }
+}
+
+// Helper functions for time display (placeholders - implement as needed)
+const formatBookingTime = () => {
+  return 'N/A'
+}
+
+const calculateDuration = () => {
+  return 'N/A'
 }
 
 // Lifecycle
@@ -898,48 +1000,49 @@ onMounted(() => {
   background: rgba(26, 45, 67, 0.9);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding:0;
+  padding: 0;
 }
 
 .navbar-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1.5rem;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .navbar-brand {
   display: flex;
   align-items: center;
-  gap: 1rem;
 }
 
 .brand-logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  border-radius: 50%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  font-weight: 900;
-  color: #ffffff;
-  box-shadow: 0 8px 16px rgba(0, 168, 232, 0.3);
+  gap: 1rem;
 }
 
-.brand-info h3 {
-  margin: 0;
-  font-size: 1.3rem;
+.brand-logo .logo-img {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.brand-text h1 {
+  color: white;
+  font-size: 1.7rem;
   font-weight: 700;
-  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.02em;
 }
 
-.brand-subtitle {
-  font-size: 0.8rem;
+.brand-text p {
   color: #00a8e8;
+  font-size: 0.8rem;
+  margin: 0;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -948,7 +1051,7 @@ onMounted(() => {
 .navbar-menu {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 .nav-links {
@@ -959,84 +1062,83 @@ onMounted(() => {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  color: rgba(255, 255, 255, 0.7);
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
-  transition: all 0.3s ease;
+  border-radius: 30px;
   font-weight: 500;
-  font-size: 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.nav-link:hover, .nav-link.active {
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  color: #ffffff;
+.nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 168, 232, 0.3);
+}
+
+.nav-link.active {
+  color: white;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link i {
+  font-size: 1.1rem;
 }
 
 .navbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1.5rem;
 }
 
 .admin-profile {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.8rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 0.75rem;
+  color: white;
 }
 
-.profile-avatar i {
-  font-size: 1.3rem;
-  color: #00a8e8;
+.admin-avatar i {
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.profile-info .profile-name {
+.admin-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-name {
   font-weight: 600;
-  color: #ffffff;
-  display: block;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
-.profile-info .profile-role {
-  font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.6);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.admin-role {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .logout-btn {
-  padding: 0.5rem;
-  background: rgba(255, 107, 107, 0.15);
-  border: 1px solid rgba(255, 107, 107, 0.25);
-  color: #ff6b6b;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .logout-btn:hover {
-  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
-}
-
-.mobile-menu-toggle {
-  display: none;
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #ffffff;
-  cursor: pointer;
 }
 
 /* Animated Background */
@@ -1158,10 +1260,11 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   text-decoration: none;
+  justify-content: center;;
 }
 
 .cta-button.primary {
@@ -2084,6 +2187,12 @@ onMounted(() => {
   border: 1px solid rgba(244, 67, 54, 0.3);
 }
 
+.popup-status.reserved {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
 .popup-available {
   text-align: center;
 }
@@ -2106,6 +2215,12 @@ onMounted(() => {
 }
 
 .popup-occupied {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.popup-reserved {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -2187,15 +2302,33 @@ onMounted(() => {
 /* Responsive Design */
 @media (max-width: 768px) {
   .navbar-content {
-    padding: 1rem;
+    padding: 0 1rem;
+    height: 70px;
   }
   
   .navbar-menu {
+    gap: 1rem;
+  }
+  
+  .nav-links {
+    gap: 0.25rem;
+  }
+  
+  .nav-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  .nav-link span {
     display: none;
   }
   
-  .mobile-menu-toggle {
-    display: block;
+  .admin-info {
+    display: none;
+  }
+  
+  .logout-btn span {
+    display: none;
   }
   
   .main-title {
@@ -2248,6 +2381,20 @@ onMounted(() => {
   
   .info-row {
     font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-text h1 {
+    font-size: 1.5rem;
+  }
+  
+  .brand-text p {
+    display: none;
+  }
+  
+  .navbar-actions {
+    gap: 0.5rem;
   }
 }
 </style>

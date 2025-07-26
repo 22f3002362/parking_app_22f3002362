@@ -11,7 +11,8 @@ from controllers import (
     ReserveSpotResource,
     UserReservationsResource,
     LoginResource,
-    RegisterResource
+    RegisterResource,
+    BookingResource
 )
 from flask_cors import CORS
 from datetime import timedelta
@@ -42,52 +43,15 @@ api.add_resource(ParkingSpotResource, '/parking-spots', '/parking-spots/<spot_id
 #endpoints for reservation
 api.add_resource(ReserveSpotResource, '/reservations', '/reservations/<reservation_id>')
 
+#endpoints for booking
+api.add_resource(BookingResource, '/booking/<action>')
+
 # Configure CORS properly
 CORS(app, origins=["http://localhost:5174", "http://127.0.0.1:5174"])
 
 @app.route('/', methods=['GET'])
 def home():
     return {'msg': 'working fine?'}, 200
-
-@app.route('/debug/tables', methods=['GET'])
-def debug_tables():
-    """Debug endpoint to check database tables and data"""
-    try:
-        from sqlalchemy import text
-        
-        # Check if tables exist
-        result = {}
-        
-        # Check users
-        users_count = db.session.execute(text("SELECT COUNT(*) FROM user")).scalar()
-        result['users_count'] = users_count
-        
-        # Check parking lots
-        lots_count = db.session.execute(text("SELECT COUNT(*) FROM parking_lot")).scalar()
-        result['parking_lots_count'] = lots_count
-        
-        # Check parking spots
-        spots_count = db.session.execute(text("SELECT COUNT(*) FROM parking_spot")).scalar()
-        result['parking_spots_count'] = spots_count
-        
-        # Check reservations
-        reservations_count = db.session.execute(text("SELECT COUNT(*) FROM reserve_spot")).scalar()
-        result['reservations_count'] = reservations_count
-        
-        # Get sample user
-        sample_user = db.session.execute(text("SELECT id, username, email FROM user LIMIT 1")).fetchone()
-        if sample_user:
-            result['sample_user'] = {
-                'id': sample_user[0],
-                'username': sample_user[1], 
-                'email': sample_user[2]
-            }
-        
-        return result, 200
-        
-    except Exception as e:
-        return {'error': str(e)}, 500
-
 
 if __name__ == '__main__':
     with app.app_context():

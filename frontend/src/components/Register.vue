@@ -170,6 +170,7 @@ const form = reactive({
 const errors = reactive({
   username: '',
   email: '',
+  phone_number: '',
   password: '',
   confirmPassword: ''
 })
@@ -185,6 +186,7 @@ const validateForm = () => {
   // Reset errors
   errors.username = ''
   errors.email = ''
+  errors.phone_number = ''
   errors.password = ''
   errors.confirmPassword = ''
 
@@ -201,6 +203,14 @@ const validateForm = () => {
     isValid = false
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
     errors.email = 'Please enter a valid email address'
+    isValid = false
+  }
+
+  if (!form.phone_number) {
+    errors.phone_number = 'Phone number is required'
+    isValid = false
+  } else if (!/^[0-9+\-\s()]{10,15}$/.test(form.phone_number.replace(/\s/g, ''))) {
+    errors.phone_number = 'Please enter a valid phone number (10-15 digits)'
     isValid = false
   }
 

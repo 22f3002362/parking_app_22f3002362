@@ -2,7 +2,7 @@ from flask_restful import Resource, Api
 from flask import request
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from models import db, User, ParkingLot, ParkingSpot, ReserveSpot
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class UserResource(Resource):
     @jwt_required()
@@ -116,6 +116,12 @@ class UserResource(Resource):
         current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
+        # Convert user_id to int for proper comparison
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            return {'msg': 'Invalid user ID'}, 400
+        
         # Only allow users to update their own data or admin to update any
         if current_user.role != 'admin' and current_user_id != user_id:
             return {'msg': 'Access denied'}, 403
@@ -134,8 +140,18 @@ class UserResource(Resource):
         if 'role' in data and current_user.role == 'admin':
             user.role = data['role']
         if 'vehicle_number' in data:
+            # Check if vehicle number is unique (only if it's different from current)
+            if data['vehicle_number'] and data['vehicle_number'] != user.vehicle_number:
+                existing_vehicle = User.query.filter_by(vehicle_number=data['vehicle_number']).first()
+                if existing_vehicle:
+                    return {'msg': 'Vehicle number already exists'}, 409
             user.vehicle_number = data['vehicle_number']
         if 'phone_number' in data:
+            # Check if phone number is unique (only if it's different from current)
+            if data['phone_number'] and data['phone_number'] != user.phone_number:
+                existing_phone = User.query.filter_by(phone_number=data['phone_number']).first()
+                if existing_phone:
+                    return {'msg': 'Phone number already exists'}, 409
             user.phone_number = data['phone_number']
         
         try:
@@ -435,7 +451,7 @@ class ReserveSpotResource(Resource):
                         'spot_id': reservation.spot_id,
                         'user_id': reservation.user_id,
                         'parking_time': reservation.parking_time.isoformat(),
-                        'leaving_time': reservation.leaving_time.isoformat(),
+                        'leaving_time': reservation.leaving_time.isoformat() if reservation.leaving_time else None,
                         'parking_cost': reservation.parking_cost
                     }
                 }, 200
@@ -449,7 +465,7 @@ class ReserveSpotResource(Resource):
                 'spot_id': reservation.spot_id,
                 'user_id': reservation.user_id,
                 'parking_time': reservation.parking_time.isoformat(),
-                'leaving_time': reservation.leaving_time.isoformat(),
+                'leaving_time': reservation.leaving_time.isoformat() if reservation.leaving_time else None,
                 'parking_cost': reservation.parking_cost
             })
         return {'msg': 'Reservations retrieved successfully', 'reservations': reservation_list}, 200
@@ -525,7 +541,7 @@ class ReserveSpotResource(Resource):
                     'spot_id': reservation.spot_id,
                     'user_id': reservation.user_id,
                     'parking_time': reservation.parking_time.isoformat(),
-                    'leaving_time': reservation.leaving_time.isoformat(),
+                    'leaving_time': reservation.leaving_time.isoformat() if reservation.leaving_time else None,
                     'parking_cost': reservation.parking_cost
                 }
             }, 201
@@ -574,8 +590,8 @@ class UserReservationsResource(Resource):
         current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
-        print(f"UserReservationsResource: user_id parameter: {user_id}, type: {type(user_id)}")
-        print(f"Current user ID: {current_user_id}, Current user: {current_user}")
+        # print(f"UserReservationsResource: user_id parameter: {user_id}, type: {type(user_id)}")
+        # print(f"Current user ID: {current_user_id}, Current user: {current_user}")
         
         # Convert user_id to int if it's a string
         try:
@@ -591,19 +607,19 @@ class UserReservationsResource(Resource):
         if not user:
             return {'msg': 'User not found'}, 404
         
-        print(f"Fetching reservations for user: {user.username}")
+        # print(f"Fetching reservations for user: {user.username}")
         
         try:
             reservations = ReserveSpot.query.filter_by(user_id=user_id).all()
-            print(f"Found {len(reservations)} reservations")
+            # print(f"Found {len(reservations)} reservations")
         except Exception as e:
-            print(f"Database error when fetching reservations: {str(e)}")
+            # print(f"Database error when fetching reservations: {str(e)}")
             return {'msg': 'Database error occurred', 'error': str(e)}, 500
         
         reservation_list = []
         for reservation in reservations:
             try:
-                print(f"Processing reservation: {reservation.id}")
+                # print(f"Processing reservation: {reservation.id}")
                 # Get spot and lot information
                 spot = ParkingSpot.query.get(reservation.spot_id)
                 lot = ParkingLot.query.get(spot.lot_id) if spot else None
@@ -614,11 +630,11 @@ class UserReservationsResource(Resource):
                     'lot_name': lot.location_name if lot else 'Unknown',
                     'lot_address': lot.address if lot else 'Unknown',
                     'parking_time': reservation.parking_time.isoformat(),
-                    'leaving_time': reservation.leaving_time.isoformat(),
+                    'leaving_time': reservation.leaving_time.isoformat() if reservation.leaving_time else None,
                     'parking_cost': reservation.parking_cost
                 })
             except Exception as e:
-                print(f"Error processing reservation {reservation.id}: {str(e)}")
+                # print(f"Error processing reservation {reservation.id}: {str(e)}")
                 continue  # Skip this reservation but continue with others
         
         result = {
@@ -626,7 +642,7 @@ class UserReservationsResource(Resource):
             'user': user.username,
             'reservations': reservation_list
         }
-        print(f"Returning result: {result}")
+        # print(f"Returning result: {result}")
         return result, 200
 
 
@@ -669,6 +685,7 @@ class RegisterResource(Resource):
         password = data.get('password')
         role = data.get('role', 'user')
         vehicle_number = data.get('vehicle_number')
+        phone_number = data.get('phone_number')
         
         if not email or not username or not password:
             return {'msg': 'Please provide email, username, and password'}, 400
@@ -689,13 +706,20 @@ class RegisterResource(Resource):
             if existing_vehicle:
                 return {'msg': 'Vehicle number already exists'}, 409
         
+        # Check if phone number already exists (only if provided)
+        if phone_number:
+            existing_phone = User.query.filter_by(phone_number=phone_number).first()
+            if existing_phone:
+                return {'msg': 'Phone number already exists'}, 409
+        
         # Create new user
         user = User(
             email=email,
             username=username,
             password=password,
             role=role,
-            vehicle_number=vehicle_number if vehicle_number else None
+            vehicle_number=vehicle_number if vehicle_number else None,
+            phone_number=phone_number if phone_number else None
         )
         
         try:
@@ -713,9 +737,221 @@ class RegisterResource(Resource):
                     'username': user.username,
                     'email': user.email,
                     'role': user.role,
-                    'vehicle_number': user.vehicle_number
+                    'vehicle_number': user.vehicle_number,
+                    'phone_number': user.phone_number
                 }
             }, 201
         except Exception as e:
             db.session.rollback()
             return {'msg': 'Registration failed. Please try again.'}, 500
+
+
+class BookingResource(Resource):
+    
+    @jwt_required()
+    def post(self, action):
+        """Handle parking spot booking operations"""
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        if not current_user:
+            return {'msg': 'User not found'}, 404
+        
+        data = request.get_json()
+        
+        if action == 'book-spot':
+            return self._book_spot(current_user, data)
+        elif action == 'occupy-spot':
+            return self._occupy_spot(current_user, data)
+        elif action == 'release-spot':
+            return self._release_spot(current_user, data)
+        else:
+            return {'msg': 'Invalid action'}, 400
+    
+    def _book_spot(self, user, data):
+        """Book a parking spot automatically"""
+        lot_id = data.get('lot_id')
+        
+        if not lot_id:
+            return {'msg': 'Parking lot ID is required'}, 400
+        
+        # Check if lot exists
+        lot = ParkingLot.query.get(lot_id)
+        if not lot:
+            return {'msg': 'Parking lot not found'}, 404
+        
+        # Check if user already has an active reservation (one with no leaving_time or future leaving_time)
+        active_reservation = ReserveSpot.query.filter_by(user_id=user.id).filter(
+            (ReserveSpot.leaving_time.is_(None)) | (ReserveSpot.leaving_time > datetime.now())
+        ).first()
+        
+        if active_reservation:
+            return {'msg': 'You already have an active parking reservation'}, 400
+        
+        # Find first available spot
+        available_spot = ParkingSpot.query.filter_by(
+            lot_id=lot_id,
+            status='available'
+        ).first()
+        
+        if not available_spot:
+            return {'msg': 'No available parking spots in this lot'}, 400
+        
+        try:
+            # Create reservation with current time as parking time
+            now = datetime.now()
+            # Set leaving_time to None (unlimited until manual release)
+            leaving_time = None
+            
+            # Initial cost is 0, will be calculated when user releases the spot
+            parking_cost = 0.0
+            
+            # Create reservation
+            reservation = ReserveSpot(
+                spot_id=available_spot.id,
+                user_id=user.id,
+                parking_time=now,
+                leaving_time=leaving_time,
+                parking_cost=parking_cost
+            )
+            
+            # Update spot status to occupied (user immediately starts parking)
+            available_spot.status = 'occupied'
+            available_spot.user_id = user.id
+            
+            # Update available slots
+            lot.available_slots -= 1
+            
+            db.session.add(reservation)
+            db.session.commit()
+            
+            return {
+                'msg': 'Parking spot booked successfully',
+                'reservation': {
+                    'id': reservation.id,
+                    'spot_id': reservation.spot_id,
+                    'lot_name': lot.location_name,
+                    'parking_time': reservation.parking_time.isoformat(),
+                    'leaving_time': None,
+                    'parking_cost': reservation.parking_cost,
+                    'status': 'active'
+                }
+            }, 201
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Booking error: {str(e)}")  # Add debug logging
+            return {'msg': 'Error booking parking spot', 'error': str(e)}, 500
+    
+    def _occupy_spot(self, user, data):
+        """Mark parking spot as occupied when user parks"""
+        reservation_id = data.get('reservation_id')
+        
+        if not reservation_id:
+            return {'msg': 'Reservation ID is required'}, 400
+        
+        reservation = ReserveSpot.query.get(reservation_id)
+        if not reservation:
+            return {'msg': 'Reservation not found'}, 404
+        
+        if reservation.user_id != user.id:
+            return {'msg': 'Access denied - not your reservation'}, 403
+        
+        try:
+            # Get the parking spot
+            spot = ParkingSpot.query.get(reservation.spot_id)
+            if spot:
+                spot.status = 'occupied'
+                
+                # Update parking time to current time (actual parking time)
+                reservation.parking_time = datetime.now()
+                
+                db.session.commit()
+                
+                return {
+                    'msg': 'Parking spot marked as occupied',
+                    'reservation': {
+                        'id': reservation.id,
+                        'spot_id': reservation.spot_id,
+                        'parking_time': reservation.parking_time.isoformat(),
+                        'status': 'occupied'
+                    }
+                }, 200
+            else:
+                return {'msg': 'Parking spot not found'}, 404
+                
+        except Exception as e:
+            db.session.rollback()
+            return {'msg': 'Error updating parking spot', 'error': str(e)}, 500
+    
+    def _release_spot(self, user, data):
+        """Release parking spot when user leaves"""
+        reservation_id = data.get('reservation_id')
+        
+        if not reservation_id:
+            return {'msg': 'Reservation ID is required'}, 400
+        
+        reservation = ReserveSpot.query.get(reservation_id)
+        if not reservation:
+            return {'msg': 'Reservation not found'}, 404
+        
+        if reservation.user_id != user.id:
+            return {'msg': 'Access denied - not your reservation'}, 403
+        
+        try:
+            # Get the parking spot and lot
+            spot = ParkingSpot.query.get(reservation.spot_id)
+            lot = ParkingLot.query.get(spot.lot_id) if spot else None
+            
+            if spot and lot:
+                # Update leaving time to current time (actual leaving time)
+                now = datetime.now()
+                reservation.leaving_time = now
+                
+                # Calculate duration in hours
+                duration_seconds = (now - reservation.parking_time).total_seconds()
+                duration_hours = duration_seconds / 3600
+                
+                # Calculate cost based on full hourly rates:
+                # - Minimum 1 hour charge regardless of actual time
+                # - Any additional time is charged as full hours (rounded up)
+                if duration_hours <= 1:
+                    # Any parking up to 1 hour is charged as 1 full hour
+                    charged_hours = 1
+                else:
+                    # More than 1 hour: round up to next full hour
+                    import math
+                    charged_hours = math.ceil(duration_hours)
+                
+                # Calculate final cost
+                reservation.parking_cost = float(charged_hours * lot.price)
+                
+                # Release the spot
+                spot.status = 'available'
+                spot.user_id = None
+                
+                # Update available slots
+                lot.available_slots += 1
+                
+                db.session.commit()
+                
+                return {
+                    'msg': 'Parking spot released successfully',
+                    'reservation': {
+                        'id': reservation.id,
+                        'spot_id': reservation.spot_id,
+                        'parking_time': reservation.parking_time.isoformat(),
+                        'leaving_time': reservation.leaving_time.isoformat(),
+                        'actual_duration_hours': round(duration_hours, 2),
+                        'charged_hours': charged_hours,
+                        'parking_cost': round(reservation.parking_cost, 2),
+                        'hourly_rate': lot.price,
+                        'status': 'completed'
+                    }
+                }, 200
+            else:
+                return {'msg': 'Parking spot or lot not found'}, 404
+                
+        except Exception as e:
+            db.session.rollback()
+            return {'msg': 'Error releasing parking spot', 'error': str(e)}, 500

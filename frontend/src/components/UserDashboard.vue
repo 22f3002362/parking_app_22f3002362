@@ -4,47 +4,46 @@
     <nav class="user-navbar">
       <div class="navbar-content">
         <div class="navbar-brand">
-          <div class="brand-logo">P</div>
-          <div class="brand-info">
-            <h3 class="brand-name">ParkEase</h3>
-            <span class="brand-subtitle">User Portal</span>
+          <div class="brand-logo">
+            <img src="../assets/P.png" alt="ParkEase Logo" class="logo-img">
+            <div class="brand-text">
+              <h1>ParkEase</h1>
+              <p>Smart Parking Solutions</p>
+            </div>
           </div>
         </div>
         
         <div class="navbar-menu">
           <div class="nav-links">
             <router-link to="/user-dashboard" class="nav-link active">
-              <i class="bi bi-speedometer2"></i>
+              <i class="bi bi-house"></i>
               <span>Dashboard</span>
             </router-link>
-            <a href="#parking-lots" class="nav-link">
-              <i class="bi bi-geo-alt-fill"></i>
+            <router-link to="/find-parking" class="nav-link">
+              <i class="bi bi-search"></i>
               <span>Find Parking</span>
-            </a>
-            <a href="#my-bookings" class="nav-link">
-              <i class="bi bi-bookmark-check"></i>
+            </router-link>
+            <router-link to="/my-bookings" class="nav-link">
+              <i class="bi bi-calendar-check"></i>
               <span>My Bookings</span>
-            </a>
+            </router-link>
           </div>
           
           <div class="navbar-actions">
             <div class="user-profile">
-              <div class="profile-avatar">
+              <div class="user-avatar">
                 <i class="bi bi-person-circle"></i>
               </div>
-              <div class="profile-info">
-                <span class="profile-name">{{ currentUser?.username || 'User' }}</span>
-                <span class="profile-role">Member</span>
+              <div class="user-info">
+                <span class="user-name">{{ currentUser?.username || 'User' }}</span>
+                <span class="user-role">User</span>
               </div>
             </div>
-            <button class="logout-btn" @click="handleLogout" title="Logout">
+            <button @click="handleLogout" class="logout-btn">
               <i class="bi bi-box-arrow-right"></i>
+              <span>Logout</span>
             </button>
           </div>
-        </div>
-        
-        <div class="mobile-menu-toggle" @click="toggleMobileMenu">
-          <i class="bi bi-list"></i>
         </div>
       </div>
     </nav>
@@ -57,7 +56,7 @@
       <!-- Hero Section -->
       <div class="hero-section">
         <div class="hero-content">
-          <h1 class="main-title">Welcome to ParkEase</h1>
+            <h1 class="main-title">Welcome {{ currentUser?.username || 'User' }}</h1>
           <p class="hero-subtitle">Find and book your perfect parking spot with ease</p>
         </div>
       </div>
@@ -95,6 +94,17 @@
               <div class="stat-details">
                 <div class="stat-number">{{ availableLots.length }}</div>
                 <div class="stat-label">Available Lots</div>
+              </div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">
+                <i class="bi bi-currency-rupee"></i>
+              </div>
+              <div class="stat-details">
+                <div class="stat-number">₹{{ totalSpentMoney.toFixed(0) }}</div>
+                <div class="stat-label">Total Spent</div>
               </div>
             </div>
           </div>
@@ -136,11 +146,11 @@
               </div>
               <div class="detail-item">
                 <i class="bi bi-clock-history"></i>
-                <span>Expires: {{ formatDateTime(reservation.leaving_time) }}</span>
+                <span>Expires: {{ reservation.leaving_time ? formatDateTime(reservation.leaving_time) : 'Manual Release Only' }}</span>
               </div>
               <div class="detail-item">
                 <i class="bi bi-currency-rupee"></i>
-                <span>Cost: ₹{{ reservation.parking_cost || '0' }}</span>
+                <span>Cost: {{ reservation.parking_cost ? '₹' + reservation.parking_cost : 'Calculated on Release' }}</span>
               </div>
             </div>
 
@@ -168,10 +178,12 @@
             </h2>
             <p class="section-subtitle">Choose from our available parking facilities</p>
           </div>
-          <button class="cta-button primary" @click="refreshData">
-            <i class="bi bi-arrow-clockwise"></i>
-            Refresh
-          </button>
+          <div class="section-actions">
+            <button class="cta-button primary" @click="refreshData">
+              <i class="bi bi-arrow-clockwise"></i>
+              Refresh
+            </button>
+          </div>
         </div>
 
         <div v-if="loading.lots" class="loading-state">
@@ -277,16 +289,16 @@
                     <span class="badge spot-badge">#{{ reservation.spot_id || 'N/A' }}</span>
                   </td>
                   <td>{{ formatDateTime(reservation.parking_time) }}</td>
-                  <td>{{ reservation.leaving_time ? formatDateTime(reservation.leaving_time) : '-' }}</td>
+                  <td>{{ reservation.leaving_time ? formatDateTime(reservation.leaving_time) : 'Ongoing' }}</td>
                   <td>
                     <span v-if="reservation.leaving_time" class="badge duration-badge">
                       {{ calculateCompletedDuration(reservation.parking_time, reservation.leaving_time) }}
                     </span>
-                    <span v-else class="badge ongoing-badge">Ongoing</span>
+                    <span v-else class="badge ongoing-badge">{{ calculateDuration(reservation.parking_time) }}</span>
                   </td>
                   <td>
                     <span class="badge price-badge">
-                      ₹{{ reservation.parking_cost || '0' }}
+                      {{ reservation.parking_cost ? '₹' + reservation.parking_cost : 'On Release' }}
                     </span>
                   </td>
                   <td>
@@ -309,6 +321,89 @@
     <div v-if="message.text" :class="['message-toast', message.type]">
       <i :class="message.type === 'success' ? 'bi bi-check-circle' : 'bi bi-exclamation-triangle'"></i>
       {{ message.text }}
+    </div>
+
+    <!-- Vehicle Number Modal -->
+    <div v-if="showVehicleModal" class="modal-overlay" @click="closeVehicleModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-header">
+          <div class="modal-title-section">
+            <h3>Vehicle Information Required</h3>
+            <p>Please provide your vehicle number to proceed with parking reservation</p>
+          </div>
+          <button class="close-btn" @click="closeVehicleModal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+
+        <form @submit.prevent="submitVehicleNumber" class="modal-form">
+          <div class="form-group">
+            <label class="form-label">
+              <i class="bi bi-car-front"></i>
+              Vehicle Number
+            </label>
+            <input
+              v-model="vehicleForm.vehicle_number"
+              type="text"
+              class="form-input"
+              placeholder="Enter your vehicle number (e.g., MH01AB1234)"
+              required
+              pattern="[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}"
+              title="Please enter a valid vehicle number format (e.g., MH01AB1234)"
+              maxlength="13"
+              style="text-transform: uppercase;"
+              @input="vehicleForm.vehicle_number = $event.target.value.toUpperCase()"
+            />
+            <small class="form-hint">Enter your vehicle registration number</small>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="cta-button secondary" @click="closeVehicleModal">
+              Cancel
+            </button>
+            <button type="submit" class="cta-button primary" :disabled="submittingVehicle || !vehicleForm.vehicle_number">
+              <span v-if="submittingVehicle" class="loading-spinner"></span>
+              {{ submittingVehicle ? 'Saving...' : 'Save & Book Parking' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Logout Confirmation Modal -->
+    <div v-if="showLogoutModal" class="modal-overlay" @click="cancelLogout">
+      <div class="modal-container logout-modal" @click.stop>
+        <div class="modal-header">
+          <div class="modal-title-section">
+            <h3>Confirm Logout</h3>
+            <p>Are you sure you want to logout from your account?</p>
+          </div>
+          <button class="close-btn" @click="cancelLogout">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+
+        <div class="logout-modal-content">
+          <div class="logout-icon">
+            <i class="bi bi-box-arrow-right"></i>
+          </div>
+          <div class="logout-message">
+            <h4>You will be logged out</h4>
+            <p>You'll need to sign in again to access your dashboard</p>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="cta-button secondary" @click="cancelLogout">
+            <i class="bi bi-x-circle"></i>
+            Cancel
+          </button>
+          <button type="button" class="cta-button primary logout-confirm-btn" @click="confirmLogout">
+            <i class="bi bi-box-arrow-right"></i>
+            Logout
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -335,6 +430,17 @@ export default {
     const releasing = ref(false);
     const message = ref({ text: '', type: '' });
 
+    // Vehicle modal state
+    const showVehicleModal = ref(false);
+    const submittingVehicle = ref(false);
+    const pendingLot = ref(null); // Store the lot to book after vehicle number is provided
+    const vehicleForm = ref({
+      vehicle_number: ''
+    });
+
+    // Logout modal state
+    const showLogoutModal = ref(false);
+
     // Computed properties
     const availableLots = computed(() => {
       return parkingLots.value.filter(lot => lot.available_slots > 0);
@@ -342,13 +448,14 @@ export default {
 
     const activeReservations = computed(() => {
       const active = userReservations.value.filter(reservation => {
-        // A reservation is active if the leaving time is in the future
-        // This allows users to release their parking anytime before the scheduled end
-        const now = new Date();
-        const leavingTime = new Date(reservation.leaving_time);
+        // A reservation is active if:
+        // 1. leaving_time is null (new system - unlimited until manual release), OR
+        // 2. leaving_time is in the future (old system compatibility)
+        const hasNoLeavingTime = !reservation.leaving_time || reservation.leaving_time === null;
+        const hasFutureLeavingTime = reservation.leaving_time && new Date(reservation.leaving_time) > new Date();
         
-        const isActive = leavingTime > now;
-        console.log(`Reservation ${reservation.id}: leaving=${reservation.leaving_time}, now=${now.toISOString()}, active=${isActive}`);
+        const isActive = hasNoLeavingTime || hasFutureLeavingTime;
+        console.log(`Reservation ${reservation.id}: leaving=${reservation.leaving_time}, hasNoLeavingTime=${hasNoLeavingTime}, hasFutureLeavingTime=${hasFutureLeavingTime}, active=${isActive}`);
         
         return isActive;
       });
@@ -367,9 +474,25 @@ export default {
       });
     });
 
+    const totalSpentMoney = computed(() => {
+      return userReservations.value.reduce((total, reservation) => {
+        // Only count completed reservations with a cost
+        if (reservation.leaving_time && reservation.parking_cost) {
+          return total + parseFloat(reservation.parking_cost);
+        }
+        return total;
+      }, 0);
+    });
+
     const getReservationStatus = (reservation) => {
       const now = new Date();
       const parkingTime = new Date(reservation.parking_time);
+      
+      // If no leaving time, it's active (new system)
+      if (!reservation.leaving_time || reservation.leaving_time === null) {
+        return 'Active';
+      }
+      
       const leavingTime = new Date(reservation.leaving_time);
       
       if (now < parkingTime) {
@@ -480,50 +603,37 @@ export default {
         return;
       }
 
+      // Check if user has a vehicle number
+      if (!currentUser.value.vehicle_number || currentUser.value.vehicle_number.trim() === '') {
+        // Store the lot to book after vehicle number is provided
+        pendingLot.value = lot;
+        vehicleForm.value.vehicle_number = '';
+        showVehicleModal.value = true;
+        return;
+      }
+
+      // Proceed with booking if vehicle number exists
+      await proceedWithBooking(lot);
+    };
+
+    const proceedWithBooking = async (lot) => {
       booking.value = true;
       try {
-        console.log('Starting reservation process for lot:', lot.id);
+        console.log('Starting booking process for lot:', lot.id);
         
-        // First, get available spots for this parking lot
-        const availableSpotsResponse = await api.getAvailableSpots(lot.id);
-        console.log('Available spots response:', availableSpotsResponse);
+        // Use the new simplified booking API that automatically assigns a spot
+        const response = await api.bookParkingSpot(lot.id);
+        console.log('Booking response:', response);
         
-        const availableSpots = availableSpotsResponse.available_spots || [];
-        
-        if (availableSpots.length === 0) {
-          showMessage('No parking spots available in this lot', 'error');
-          return;
-        }
-
-        // Get the first available spot
-        const selectedSpot = availableSpots[0];
-        console.log('Selected spot:', selectedSpot);
-
-        // Create reservation with proper format expected by backend
-        const now = new Date();
-        const parkingTime = now.toISOString();
-        // Set a default leaving time (e.g., 8 hours from now) to give users plenty of time
-        const leavingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString();
-
-        const reservationData = {
-          spot_id: selectedSpot.id,
-          user_id: currentUser.value.id,
-          parking_time: parkingTime,
-          leaving_time: leavingTime
-        };
-
-        console.log('Creating reservation with data:', reservationData);
-        const response = await api.createReservation(reservationData);
-        console.log('Reservation response:', response);
-        
-        showMessage(`Parking spot #${selectedSpot.id} reserved successfully!`, 'success');
+        const reservation = response.reservation;
+        showMessage(`Parking spot #${reservation.spot_id} booked successfully at ${reservation.lot_name}!`, 'success');
         
         // Refresh data
         await Promise.all([fetchParkingLots(), fetchUserReservations()]);
         
       } catch (error) {
-        console.error('Error creating reservation:', error);
-        let errorMessage = 'Failed to reserve parking spot';
+        console.error('Error booking parking spot:', error);
+        let errorMessage = 'Failed to book parking spot';
         
         if (error.response?.data?.msg) {
           errorMessage = error.response.data.msg;
@@ -544,11 +654,16 @@ export default {
       try {
         console.log('Releasing reservation:', reservation);
         
-        // Cancel the reservation
-        const response = await api.cancelReservation(reservation.id);
-        console.log('Cancel reservation response:', response);
+        // Use the new release API for proper timestamp handling and cost calculation
+        const response = await api.releaseParkingSpot(reservation.id);
+        console.log('Release response:', response);
         
-        showMessage('Parking spot released successfully!', 'success');
+        const releasedReservation = response.reservation;
+        
+        showMessage(
+          `Parking spot released successfully! Duration: ${releasedReservation.actual_duration_hours || releasedReservation.duration_hours || 'N/A'} hours (Charged: ${releasedReservation.charged_hours || 'N/A'} hours) - Cost: ₹${releasedReservation.parking_cost || '0'}`, 
+          'success'
+        );
         
         // Refresh data
         await Promise.all([fetchParkingLots(), fetchUserReservations()]);
@@ -635,6 +750,10 @@ export default {
     };
 
     const handleLogout = () => {
+      showLogoutModal.value = true;
+    };
+
+    const confirmLogout = () => {
       localStorage.removeItem('isLoggedIn');
       localStorage.removeItem('access_token');
       localStorage.removeItem('token');
@@ -643,11 +762,74 @@ export default {
       localStorage.removeItem('username');
       localStorage.removeItem('email');
       localStorage.removeItem('role');
+      showMessage('Logged out successfully', 'success');
       router.push('/login');
+      showLogoutModal.value = false;
+    };
+
+    const cancelLogout = () => {
+      showLogoutModal.value = false;
     };
 
     const toggleMobileMenu = () => {
       // Mobile menu toggle functionality
+    };
+
+    // Vehicle Modal Functions
+    const closeVehicleModal = () => {
+      showVehicleModal.value = false;
+      pendingLot.value = null;
+      vehicleForm.value.vehicle_number = '';
+    };
+
+    const submitVehicleNumber = async () => {
+      if (!vehicleForm.value.vehicle_number || !currentUser.value?.id) {
+        showMessage('Please enter a valid vehicle number', 'error');
+        return;
+      }
+
+      submittingVehicle.value = true;
+      try {
+        // Update user's vehicle number
+        const updateData = {
+          vehicle_number: vehicleForm.value.vehicle_number.trim().toUpperCase()
+        };
+        
+        console.log('Updating user vehicle number:', updateData);
+        const response = await api.updateUser(currentUser.value.id, updateData);
+        console.log('Update response:', response);
+        
+        // Update local user data
+        currentUser.value.vehicle_number = updateData.vehicle_number;
+        localStorage.setItem('user', JSON.stringify(currentUser.value));
+        
+        showMessage('Vehicle number saved successfully!', 'success');
+        
+        // Close modal
+        showVehicleModal.value = false;
+        
+        // Proceed with booking the pending lot
+        if (pendingLot.value) {
+          await proceedWithBooking(pendingLot.value);
+          pendingLot.value = null;
+        }
+        
+        vehicleForm.value.vehicle_number = '';
+        
+      } catch (error) {
+        console.error('Error updating vehicle number:', error);
+        let errorMessage = 'Failed to save vehicle number';
+        
+        if (error.response?.data?.msg) {
+          errorMessage = error.response.data.msg;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        showMessage(errorMessage, 'error');
+      } finally {
+        submittingVehicle.value = false;
+      }
     };
 
     // Initialize component
@@ -694,6 +876,7 @@ export default {
       activeReservations,
       totalReservations,
       sortedReservations,
+      totalSpentMoney,
       selectParkingLot,
       releaseParkingSpot,
       refreshData,
@@ -702,8 +885,18 @@ export default {
       calculateCompletedDuration,
       getReservationStatus,
       handleLogout,
+      confirmLogout,
+      cancelLogout,
       toggleMobileMenu,
-      checkAuth
+      checkAuth,
+      // Vehicle modal
+      showVehicleModal,
+      submittingVehicle,
+      vehicleForm,
+      closeVehicleModal,
+      submitVehicleNumber,
+      // Logout modal
+      showLogoutModal
     };
   }
 };
@@ -742,44 +935,45 @@ export default {
 }
 
 .navbar-content {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0.75rem 1.5rem;
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
 }
 
 .navbar-brand {
   display: flex;
   align-items: center;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
   gap: 1rem;
 }
 
-.navbar-brand .brand-logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  font-weight: 900;
-  color: #ffffff;
-  box-shadow: 0 8px 16px rgba(0, 168, 232, 0.3);
+.brand-logo .logo-img {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.brand-info .brand-name {
-  font-size: 1.3rem;
+.brand-text h1 {
+  color: white;
+  font-size: 1.7rem;
   font-weight: 700;
-  color: #ffffff;
   margin: 0;
+  letter-spacing: -0.02em;
 }
 
-.brand-info .brand-subtitle {
-  font-size: 0.8rem;
+.brand-text p {
   color: #00a8e8;
+  font-size: 0.8rem;
+  margin: 0;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -788,7 +982,7 @@ export default {
 .navbar-menu {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 .nav-links {
@@ -799,75 +993,83 @@ export default {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  color: rgba(255, 255, 255, 0.7);
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
-  transition: all 0.3s ease;
+  border-radius: 30px;
   font-weight: 500;
-  font-size: 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.nav-link:hover, .nav-link.active, .nav-link.router-link-active {
-  background: linear-gradient(135deg, #0077be, #00a8e8);
-  color: #ffffff;
+.nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 168, 232, 0.3);
+}
+
+.nav-link.active {
+  color: white;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link i {
+  font-size: 1.1rem;
 }
 
 .navbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1.5rem;
 }
 
 .user-profile {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.8rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 0.75rem;
+  color: white;
 }
 
-.profile-avatar {
-  font-size: 1.3rem;
-  color: #00a8e8;
+.user-avatar i {
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.profile-info .profile-name {
+.user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
   font-weight: 600;
-  color: #ffffff;
-  display: block;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
-.profile-info .profile-role {
-  font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.6);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.user-role {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .logout-btn {
-  padding: 0.5rem;
-  background: rgba(255, 107, 107, 0.15);
-  border: 1px solid rgba(255, 107, 107, 0.25);
-  color: #ff6b6b;
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .logout-btn:hover {
-  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
 }
 
 .mobile-menu-toggle {
@@ -999,7 +1201,7 @@ export default {
 
 .stat-details .stat-number {
   font-size: 2.5rem;
-  font-weight: 800;
+  font-weight: 600;
   color: #ffffff;
   margin-bottom: 0.25rem;
   line-height: 1;
@@ -1042,6 +1244,11 @@ export default {
   margin-bottom: 2rem;
   flex-wrap: wrap;
   gap: 1rem;
+}
+
+.section-actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .section-title {
@@ -1245,6 +1452,20 @@ export default {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 168, 232, 0.35);
   background: linear-gradient(135deg, #005fa3, #0094d1);
+}
+
+.cta-button.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.cta-button.secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .cta-button.full-width {
@@ -1472,23 +1693,258 @@ export default {
   }
 }
 
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-container {
+  background: rgba(26, 26, 26, 0.95);
+  backdrop-filter: blur(30px);
+  border: 1px solid rgba(23, 83, 148, 0.3);
+  border-radius: 25px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalSlideIn 0.4s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  padding: 2rem 2rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.modal-title-section h3 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 0.5rem;
+}
+
+.modal-title-section p {
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+.close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  background: rgba(255, 107, 107, 0.8);
+  transform: scale(1.1);
+}
+
+/* Form Styles */
+.modal-form {
+  padding: 2rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #00a8e8;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(0, 168, 232, 0.2);
+  border-radius: 15px;
+  color: #fff;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #00a8e8;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 20px rgba(0, 168, 232, 0.2);
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.form-hint {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  display: block;
+}
+
+.modal-footer {
+  padding: 1.5rem 2rem 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Logout Modal Specific Styles */
+.logout-modal {
+  max-width: 450px;
+}
+
+.logout-modal-content {
+  padding: 2rem;
+  text-align: center;
+}
+
+.logout-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 1.5rem;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: logoutIconPulse 2s ease-in-out infinite;
+}
+
+.logout-icon i {
+  font-size: 2.5rem;
+  color: white;
+}
+
+@keyframes logoutIconPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 15px rgba(255, 107, 107, 0);
+  }
+}
+
+.logout-message h4 {
+  color: #ffffff;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.logout-message p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.logout-confirm-btn {
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f) !important;
+  border-color: #ff6b6b !important;
+}
+
+.logout-confirm-btn:hover {
+  background: linear-gradient(135deg, #ff5252, #e53e3e) !important;
+  box-shadow: 0 8px 25px rgba(255, 107, 107, 0.35) !important;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
-  .main-content {
-    padding: 1rem;
-    padding-top: 80px;
+  .navbar-content {
+    padding: 0 1rem;
+    height: 70px;
   }
   
-  .navbar-content {
-    padding: 0.5rem 1rem;
+  .navbar-menu {
+    gap: 1rem;
   }
   
   .nav-links {
+    gap: 0.25rem;
+  }
+  
+  .nav-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  .nav-link span {
     display: none;
   }
   
-  .mobile-menu-toggle {
-    display: flex;
+  .user-info {
+    display: none;
+  }
+  
+  .logout-btn span {
+    display: none;
+  }
+  
+  .main-content {
+    padding: 1rem;
+    padding-top: 80px;
   }
   
   .stats-grid {
@@ -1526,9 +1982,42 @@ export default {
     right: 1rem;
     left: 1rem;
   }
+  
+  .modal-container {
+    width: 95%;
+    margin: 1rem;
+  }
+  
+  .modal-header {
+    padding: 1.5rem;
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  
+  .modal-form {
+    padding: 1.5rem;
+  }
+  
+  .modal-footer {
+    padding: 1rem 1.5rem 1.5rem;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 480px) {
+  .brand-text h1 {
+    font-size: 1.5rem;
+  }
+  
+  .brand-text p {
+    display: none;
+  }
+  
+  .navbar-actions {
+    gap: 0.5rem;
+  }
+  
   .main-title {
     font-size: 1.8rem;
   }

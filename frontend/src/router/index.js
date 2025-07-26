@@ -40,9 +40,19 @@ const router = createRouter({
       component: () => import('../components/UserDashboard.vue'),
     },
     {
+      path: '/find-parking',
+      name: 'find-parking',
+      component: () => import('../components/FindParking.vue'),
+    },
+    {
       path: '/parking-lots',
       name: 'parking-lots',
       component: () => import('../components/ParkingLots.vue'),
+    },
+    {
+      path: '/my-bookings',
+      name: 'my-bookings',
+      component: () => import('../components/MyBookings.vue'),
     }
   ],
 })

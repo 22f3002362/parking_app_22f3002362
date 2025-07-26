@@ -185,25 +185,7 @@ const apiService = {
     }
   },
 
-  async getParkingSpotDetails(spotId) {
-    try {
-      const response = await apiClient.get(`/parking-spots/${spotId}/details`);
-      return response.data;
-    } catch (error) {
-      // Fallback to regular spot endpoint if details endpoint doesn't exist
-      const response = await apiClient.get(`/parking-spots/${spotId}`);
-      return response.data;
-    }
-  },
 
-  async getUserDetails(userId) {
-    try {
-      const response = await apiClient.get(`/users/${userId}`);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
 
   async updateParkingSpot(spotId, spotData) {
     try {
@@ -227,6 +209,33 @@ const apiService = {
   async createReservation(reservationData) {
     try {
       const response = await apiClient.post('/reservations', reservationData);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async bookParkingSpot(lotId) {
+    try {
+      const response = await apiClient.post('/booking/book-spot', { lot_id: lotId });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async occupyParkingSpot(reservationId) {
+    try {
+      const response = await apiClient.post('/booking/occupy-spot', { reservation_id: reservationId });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async releaseParkingSpot(reservationId) {
+    try {
+      const response = await apiClient.post('/booking/release-spot', { reservation_id: reservationId });
       return response.data;
     } catch (error) {
       throw error;
@@ -305,11 +314,12 @@ export const {
   deleteParkingLot,
   getParkingSpots,
   getParkingSpot,
-  getParkingSpotDetails,
-  getUserDetails,
   updateParkingSpot,
   getAvailableSpots,
   createReservation,
+  bookParkingSpot,
+  occupyParkingSpot,
+  releaseParkingSpot,
   getReservation,
   getAllReservations,
   cancelReservation,
