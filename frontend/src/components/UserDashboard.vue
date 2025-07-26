@@ -405,6 +405,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Payment Modal -->
+    <PaymentModal
+      :is-visible="showPaymentModal"
+      :reservation="currentReservation"
+      :amount="currentReservation?.parking_cost"
+      @close="closePaymentModal"
+      @payment-success="handlePaymentSuccess"
+    />
   </div>
 </template>
 
@@ -412,9 +421,13 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../services/api.js';
+import PaymentModal from './PaymentModal.vue';
 
 export default {
   name: 'UserDashboard',
+  components: {
+    PaymentModal
+  },
   setup() {
     const router = useRouter();
     
@@ -440,6 +453,10 @@ export default {
 
     // Logout modal state
     const showLogoutModal = ref(false);
+
+    // Payment modal state
+    const showPaymentModal = ref(false);
+    const currentReservation = ref(null);
 
     // Computed properties
     const availableLots = computed(() => {
@@ -648,50 +665,102 @@ export default {
     };
 
     const releaseParkingSpot = async (reservation) => {
-      if (!checkAuth()) return;
+      console.log('🔥 releaseParkingSpot function called!');
+      console.log('Reservation data:', reservation);
       
+      if (releasing.value) {
+        console.log('Already releasing, returning');
+        return;
+      }
+      
+      if (!confirm(`Are you sure you want to release parking spot #${reservation.spot_id}?`)) {
+        console.log('User cancelled confirmation');
+        return;
+      }
+
+      console.log('Calculating parking cost...');
+      // Calculate parking cost
+      const parkingCost = calculateParkingCost(reservation);
+      console.log('Calculated cost:', parkingCost);
+      
+      // Show payment modal
+      console.log('Setting current reservation and showing modal...');
+      currentReservation.value = { ...reservation, parking_cost: parkingCost };
+      showPaymentModal.value = true;
+      console.log('Modal should be visible now. showPaymentModal.value:', showPaymentModal.value);
+      console.log('currentReservation.value:', currentReservation.value);
+    };
+
+    const calculateEstimatedCost = (reservation) => {
+      if (!reservation.parking_time) return 20; // Default minimum cost
+      
+      const startTime = new Date(reservation.parking_time);
+      const now = new Date();
+      const diffMs = now - startTime;
+      const diffHours = Math.ceil(diffMs / (1000 * 60 * 60)); // Round up to next hour
+      
+      // Base rate: ₹10 per hour, minimum ₹20
+      const costPerHour = 10;
+      const totalCost = Math.max(diffHours * costPerHour, 20);
+      
+      return totalCost;
+    };
+
+    const calculateParkingCost = (reservation) => {
+      return calculateEstimatedCost(reservation);
+    };
+
+    const handlePaymentSuccess = async (paymentData) => {
       releasing.value = true;
+      
       try {
-        console.log('Releasing reservation:', reservation);
+        console.log('Calling API to release parking spot:', currentReservation.value.id);
+        console.log('Payment data:', paymentData);
         
-        // Use the new release API for proper timestamp handling and cost calculation
-        const response = await api.releaseParkingSpot(reservation.id);
-        console.log('Release response:', response);
+        // Prepare transaction data for backend
+        const transactionData = {
+          transactionId: paymentData.transactionId,
+          paymentMethod: paymentData.paymentMethod
+        }
         
-        const releasedReservation = response.reservation;
+        // Call the actual API to release the parking spot with transaction details
+        const response = await api.releaseParkingSpot(currentReservation.value.id, transactionData);
+        console.log('Release API response:', response);
         
-        showMessage(
-          `Parking spot released successfully! Duration: ${releasedReservation.actual_duration_hours || releasedReservation.duration_hours || 'N/A'} hours (Charged: ${releasedReservation.charged_hours || 'N/A'} hours) - Cost: ₹${releasedReservation.parking_cost || '0'}`, 
-          'success'
-        );
+        // Close payment modal
+        showPaymentModal.value = false;
+        currentReservation.value = null;
         
-        // Refresh data
+        // Show success message with transaction details
+        showMessage(`Parking spot released successfully! Payment completed.\nTransaction ID: ${response.reservation?.transaction_id || paymentData.transactionId}`, 'success');
+        
+        // Refresh data to get updated state from backend
         await Promise.all([fetchParkingLots(), fetchUserReservations()]);
         
-      } catch (error) {
-        console.error('Error releasing parking spot:', error);
-        console.error('Error details:', {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message
-        });
+      } catch (err) {
+        console.error('Error releasing parking spot:', err);
         
-        let errorMessage = 'Failed to release parking spot';
-        if (error.response?.data?.msg) {
-          errorMessage = error.response.data.msg;
-        } else if (error.response?.status === 404) {
-          errorMessage = 'Reservation not found';
-        } else if (error.response?.status === 403) {
-          errorMessage = 'Access denied - you can only release your own reservations';
-        } else if (error.message) {
-          errorMessage = error.message;
+        // Close payment modal even on error
+        showPaymentModal.value = false;
+        currentReservation.value = null;
+        
+        // Show appropriate error message
+        let errorMessage = 'Payment successful but failed to release booking. Please contact support.';
+        if (err.response?.data?.msg) {
+          errorMessage = `Payment successful but release failed: ${err.response.data.msg}`;
+        } else if (err.message) {
+          errorMessage = `Payment successful but release failed: ${err.message}`;
         }
         
         showMessage(errorMessage, 'error');
       } finally {
         releasing.value = false;
       }
+    };
+
+    const closePaymentModal = () => {
+      showPaymentModal.value = false;
+      currentReservation.value = null;
     };
 
     const refreshData = async () => {
@@ -896,7 +965,14 @@ export default {
       closeVehicleModal,
       submitVehicleNumber,
       // Logout modal
-      showLogoutModal
+      showLogoutModal,
+      // Payment modal - ADDED THESE MISSING VARIABLES
+      showPaymentModal,
+      currentReservation,
+      handlePaymentSuccess,
+      closePaymentModal,
+      calculateEstimatedCost,
+      calculateParkingCost
     };
   }
 };

@@ -27,7 +27,7 @@
               <i class="bi bi-people-fill"></i>
               <span>Users</span>
             </router-link>
-            <a href="#reports" class="nav-link">
+            <a href="/admin-reports" class="nav-link">
               <i class="bi bi-graph-up"></i>
               <span>Reports</span>
             </a>

@@ -27,10 +27,10 @@
               <i class="bi bi-people-fill"></i>
               <span>Users</span>
             </router-link>
-            <a href="#reports" class="nav-link">
+            <router-link to="/admin-reports" class="nav-link">
               <i class="bi bi-graph-up"></i>
               <span>Reports</span>
-            </a>
+            </router-link>
           </div>
           
           <div class="navbar-actions">
@@ -886,6 +886,8 @@ onMounted(() => {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 
 /* Admin Navbar */
@@ -1520,8 +1522,8 @@ onMounted(() => {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
   display: flex;
@@ -1529,6 +1531,9 @@ onMounted(() => {
   justify-content: center;
   z-index: 1000;
   animation: modalFadeIn 0.3s ease-out;
+  overflow: hidden;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
 @keyframes modalFadeIn {
@@ -1541,11 +1546,13 @@ onMounted(() => {
   backdrop-filter: blur(30px);
   border: 1px solid rgba(23, 83, 148, 0.3);
   border-radius: 25px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
+  width: 100%;
+  max-width: 500px;
+  max-height: calc(100vh - 2rem);
   overflow-y: auto;
+  overflow-x: hidden;
   animation: modalSlideIn 0.4s ease-out;
+  box-sizing: border-box;
 }
 
 @keyframes modalSlideIn {
@@ -1560,11 +1567,19 @@ onMounted(() => {
 }
 
 .modal-header {
-  padding: 2rem 2rem 1rem;
-  border-bottom: 1px solid rgb(255, 255, 255);
+  padding: 1.5rem 1.5rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.modal-title-section {
+  flex: 1;
+  min-width: 0;
+  margin-right: 1rem;
 }
 
 .modal-title-section h3 {
@@ -1755,17 +1770,48 @@ onMounted(() => {
     display: none;
   }
   
-  .main-content { padding: 1rem; padding-top: 80px; }
+  .main-content { 
+    padding: 1rem; 
+    padding-top: 80px; 
+    overflow-x: hidden;
+  }
   .main-title { font-size: 2rem; }
   .hero-section { padding: 2rem 1rem; }
   .stats-grid { grid-template-columns: 1fr; gap: 1rem; }
   .stat-card { padding: 1.5rem; }
-  .section-container { padding: 2rem 1.5rem; }
+  .section-container { 
+    padding: 2rem 1.5rem; 
+    overflow-x: hidden;
+  }
   .section-header, .modal-footer { flex-direction: column; }
   .form-row { grid-template-columns: 1fr; }
-  .modal-header { padding: 1.5rem; flex-direction: column; text-align: center; gap: 1rem; }
+  .modal-header { 
+    padding: 1rem; 
+    flex-direction: column; 
+    text-align: center; 
+    gap: 1rem; 
+  }
   .cta-button { width: 100%; justify-content: center; }
   .hero-stats { gap: 2rem; }
+  
+  /* Modal specific mobile fixes */
+  .modal-overlay {
+    padding: 0.5rem;
+  }
+  
+  .modal-container {
+    max-width: calc(100vw - 1rem);
+    margin: 0;
+  }
+  
+  .modal-title-section {
+    margin-right: 0;
+  }
+  
+  .modal-footer {
+    padding: 1rem;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1781,11 +1827,39 @@ onMounted(() => {
     gap: 0.5rem;
   }
   
-  .admin-dashboard-container { padding: 0; }
+  .admin-dashboard-container { 
+    padding: 0; 
+    overflow-x: hidden;
+    width: 100vw;
+  }
   .main-title { font-size: 1.8rem; }
-  .main-content { padding: 0.5rem; padding-top: 60px; }
+  .main-content { 
+    padding: 0.5rem; 
+    padding-top: 60px; 
+    overflow-x: hidden;
+    width: 100%;
+  }
   .hero-section { padding: 1.5rem 1rem; }
-  .section-container { padding: 1.5rem 1rem; }
+  .section-container { 
+    padding: 1.5rem 1rem; 
+    margin-left: 0;
+    margin-right: 0;
+    overflow-x: hidden;
+  }
   .stat-card { padding: 1.5rem; }
+  
+  /* Extra small screen modal fixes */
+  .modal-overlay {
+    padding: 0.25rem;
+  }
+  
+  .modal-container {
+    max-width: calc(100vw - 0.5rem);
+    border-radius: 15px;
+  }
+  
+  .modal-header {
+    padding: 0.75rem;
+  }
 }
 </style>

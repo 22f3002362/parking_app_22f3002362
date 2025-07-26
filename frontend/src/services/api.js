@@ -233,9 +233,14 @@ const apiService = {
     }
   },
 
-  async releaseParkingSpot(reservationId) {
+  async releaseParkingSpot(reservationId, transactionData = {}) {
     try {
-      const response = await apiClient.post('/booking/release-spot', { reservation_id: reservationId });
+      const payload = {
+        reservation_id: reservationId,
+        transaction_id: transactionData.transactionId,
+        payment_method: transactionData.paymentMethod
+      };
+      const response = await apiClient.post('/booking/release-spot', payload);
       return response.data;
     } catch (error) {
       throw error;
@@ -294,6 +299,34 @@ const apiService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  // Reports and Analytics APIs
+  async getReportsData() {
+    try {
+      const response = await apiClient.get('/reports');
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async exportParkingDetails() {
+    try {
+      const response = await apiClient.get('/export/parking-details');
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async generateMonthlyReport() {
+    try {
+      const response = await apiClient.get('/export/monthly-report');
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
   }
 };
 
@@ -324,5 +357,8 @@ export const {
   getAllReservations,
   cancelReservation,
   getUserReservations,
-  healthCheck
+  healthCheck,
+  getReportsData,
+  exportParkingDetails,
+  generateMonthlyReport
 } = apiService;

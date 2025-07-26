@@ -631,7 +631,9 @@ class UserReservationsResource(Resource):
                     'lot_address': lot.address if lot else 'Unknown',
                     'parking_time': reservation.parking_time.isoformat(),
                     'leaving_time': reservation.leaving_time.isoformat() if reservation.leaving_time else None,
-                    'parking_cost': reservation.parking_cost
+                    'parking_cost': reservation.parking_cost,
+                    'transaction_id': reservation.transaction_id,
+                    'payment_method': reservation.payment_method
                 })
             except Exception as e:
                 # print(f"Error processing reservation {reservation.id}: {str(e)}")
@@ -887,6 +889,8 @@ class BookingResource(Resource):
     def _release_spot(self, user, data):
         """Release parking spot when user leaves"""
         reservation_id = data.get('reservation_id')
+        transaction_id = data.get('transaction_id')  # Get transaction ID from payment
+        payment_method = data.get('payment_method')  # Get payment method
         
         if not reservation_id:
             return {'msg': 'Reservation ID is required'}, 400
@@ -926,6 +930,19 @@ class BookingResource(Resource):
                 # Calculate final cost
                 reservation.parking_cost = float(charged_hours * lot.price)
                 
+                # Store transaction details if provided
+                if transaction_id:
+                    reservation.transaction_id = transaction_id
+                if payment_method:
+                    # Map frontend payment method to standardized values
+                    method_mapping = {
+                        'qr': 'UPI',
+                        'card': 'Card',
+                        'upi': 'UPI',
+                        'cash': 'Cash'
+                    }
+                    reservation.payment_method = method_mapping.get(payment_method, payment_method)
+                
                 # Release the spot
                 spot.status = 'available'
                 spot.user_id = None
@@ -946,6 +963,8 @@ class BookingResource(Resource):
                         'charged_hours': charged_hours,
                         'parking_cost': round(reservation.parking_cost, 2),
                         'hourly_rate': lot.price,
+                        'transaction_id': reservation.transaction_id,
+                        'payment_method': reservation.payment_method,
                         'status': 'completed'
                     }
                 }, 200
@@ -955,3 +974,291 @@ class BookingResource(Resource):
         except Exception as e:
             db.session.rollback()
             return {'msg': 'Error releasing parking spot', 'error': str(e)}, 500
+
+
+class ReportsResource(Resource):
+    @jwt_required()
+    def get(self):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # Only admin can access reports
+        if current_user.role != 'admin':
+            return {'msg': 'Access denied. Admin only.'}, 403
+        
+        try:
+            # Get parking lot statistics
+            lots = ParkingLot.query.all()
+            lot_stats = []
+            
+            for lot in lots:
+                total_spots = lot.number_of_slots
+                occupied_spots = total_spots - lot.available_slots
+                
+                # Get reservations for this lot
+                lot_reservations = db.session.query(ReserveSpot).join(ParkingSpot).filter(
+                    ParkingSpot.lot_id == lot.id
+                ).count()
+                
+                # Calculate revenue for this lot
+                lot_revenue = db.session.query(db.func.sum(ReserveSpot.parking_cost)).join(ParkingSpot).filter(
+                    ParkingSpot.lot_id == lot.id,
+                    ReserveSpot.leaving_time.isnot(None)  # Only completed reservations
+                ).scalar() or 0
+                
+                lot_stats.append({
+                    'id': lot.id,
+                    'location_name': lot.location_name,
+                    'total_spots': total_spots,
+                    'occupied_spots': occupied_spots,
+                    'available_spots': lot.available_slots,
+                    'occupancy_rate': round((occupied_spots / total_spots) * 100, 2) if total_spots > 0 else 0,
+                    'total_reservations': lot_reservations,
+                    'total_revenue': round(float(lot_revenue), 2)
+                })
+            
+            # Get user statistics
+            total_users = User.query.count()
+            admin_users = User.query.filter_by(role='admin').count()
+            regular_users = User.query.filter_by(role='user').count()
+            
+            # Get reservation statistics
+            total_reservations = ReserveSpot.query.count()
+            active_reservations = ReserveSpot.query.filter_by(leaving_time=None).count()
+            completed_reservations = ReserveSpot.query.filter(ReserveSpot.leaving_time.isnot(None)).count()
+            
+            # Calculate total revenue
+            total_revenue = db.session.query(db.func.sum(ReserveSpot.parking_cost)).filter(
+                ReserveSpot.leaving_time.isnot(None)
+            ).scalar() or 0
+            
+            # Get monthly reservation trends (last 12 months)
+            monthly_trends = []
+            for i in range(12):
+                month_start = datetime.now().replace(day=1) - timedelta(days=30*i)
+                month_end = month_start + timedelta(days=30)
+                
+                month_reservations = ReserveSpot.query.filter(
+                    ReserveSpot.parking_time >= month_start,
+                    ReserveSpot.parking_time < month_end
+                ).count()
+                
+                monthly_trends.append({
+                    'month': month_start.strftime('%B %Y'),
+                    'reservations': month_reservations
+                })
+            
+            monthly_trends.reverse()  # Show oldest to newest
+            
+            # Daily revenue trends (last 30 days)
+            daily_revenue = []
+            for i in range(30):
+                day_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
+                day_end = day_start + timedelta(days=1)
+                
+                day_revenue = db.session.query(db.func.sum(ReserveSpot.parking_cost)).filter(
+                    ReserveSpot.parking_time >= day_start,
+                    ReserveSpot.parking_time < day_end,
+                    ReserveSpot.leaving_time.isnot(None)
+                ).scalar() or 0
+                
+                daily_revenue.append({
+                    'date': day_start.strftime('%Y-%m-%d'),
+                    'revenue': round(float(day_revenue), 2)
+                })
+            
+            daily_revenue.reverse()  # Show oldest to newest
+            
+            # Monthly revenue trends (last 12 months)
+            monthly_revenue = []
+            for i in range(12):
+                month_start = datetime.now().replace(day=1) - timedelta(days=30*i)
+                month_end = month_start + timedelta(days=30)
+                
+                month_revenue_amount = db.session.query(db.func.sum(ReserveSpot.parking_cost)).filter(
+                    ReserveSpot.parking_time >= month_start,
+                    ReserveSpot.parking_time < month_end,
+                    ReserveSpot.leaving_time.isnot(None)
+                ).scalar() or 0
+                
+                monthly_revenue.append({
+                    'month': month_start.strftime('%B %Y'),
+                    'revenue': round(float(month_revenue_amount), 2)
+                })
+            
+            monthly_revenue.reverse()  # Show oldest to newest
+            
+            # Payment method distribution
+            payment_methods = db.session.query(
+                ReserveSpot.payment_method,
+                db.func.count(ReserveSpot.payment_method)
+            ).filter(
+                ReserveSpot.payment_method.isnot(None)
+            ).group_by(ReserveSpot.payment_method).all()
+            
+            payment_distribution = [
+                {'method': method, 'count': count} for method, count in payment_methods
+            ]
+            
+            return {
+                'msg': 'Reports data retrieved successfully',
+                'data': {
+                    'parking_lots': lot_stats,
+                    'user_stats': {
+                        'total_users': total_users,
+                        'admin_users': admin_users,
+                        'regular_users': regular_users
+                    },
+                    'reservation_stats': {
+                        'total_reservations': total_reservations,
+                        'active_reservations': active_reservations,
+                        'completed_reservations': completed_reservations,
+                        'total_revenue': round(float(total_revenue), 2)
+                    },
+                    'monthly_trends': monthly_trends,
+                    'daily_revenue': daily_revenue,
+                    'monthly_revenue': monthly_revenue,
+                    'payment_distribution': payment_distribution,
+                    'overall_occupancy': {
+                        'total_spots': sum(lot['total_spots'] for lot in lot_stats),
+                        'occupied_spots': sum(lot['occupied_spots'] for lot in lot_stats),
+                        'available_spots': sum(lot['available_spots'] for lot in lot_stats)
+                    }
+                }
+            }, 200
+            
+        except Exception as e:
+            return {'msg': 'Error retrieving reports data', 'error': str(e)}, 500
+
+
+class ExportResource(Resource):
+    @jwt_required()
+    def get(self, export_type):
+        try:
+            current_user_id = int(get_jwt_identity())
+            current_user = User.query.get(current_user_id)
+            
+            # Only admin can export data
+            if current_user.role != 'admin':
+                return {'msg': 'Access denied. Admin only.'}, 403
+            
+            print(f"Export request for type: {export_type}")  # Debug logging
+            
+        except Exception as e:
+            print(f"Authentication error in export: {str(e)}")
+            return {'msg': 'Authentication error', 'error': str(e)}, 401
+        
+        try:
+            if export_type == 'parking-details':
+                print("Starting parking-details export...")  # Debug logging
+                
+                # Alternative approach: Get reservations and fetch related data separately
+                try:
+                    # First, try the join approach
+                    reservations = db.session.query(
+                        ReserveSpot,
+                        User.username,
+                        User.email,
+                        User.vehicle_number,
+                        ParkingLot.location_name,
+                        ParkingSpot.id.label('spot_number')
+                    ).join(
+                        User, ReserveSpot.user_id == User.id
+                    ).join(
+                        ParkingSpot, ReserveSpot.spot_id == ParkingSpot.id
+                    ).join(
+                        ParkingLot, ParkingSpot.lot_id == ParkingLot.id
+                    ).all()
+                    
+                    print(f"Join approach successful: Found {len(reservations)} reservations")
+                    
+                except Exception as join_error:
+                    print(f"Join approach failed: {str(join_error)}")
+                    # Fallback: Get data separately
+                    all_reservations = ReserveSpot.query.all()
+                    reservations = []
+                    
+                    for reservation in all_reservations:
+                        try:
+                            user = User.query.get(reservation.user_id)
+                            spot = ParkingSpot.query.get(reservation.spot_id)
+                            lot = ParkingLot.query.get(spot.lot_id) if spot else None
+                            
+                            reservations.append((
+                                reservation,
+                                user.username if user else 'Unknown',
+                                user.email if user else 'Unknown',
+                                user.vehicle_number if user else None,
+                                lot.location_name if lot else 'Unknown',
+                                spot.id if spot else 'Unknown'
+                            ))
+                        except Exception as e:
+                            print(f"Error processing reservation {reservation.id}: {str(e)}")
+                            continue
+                    
+                    print(f"Fallback approach: Found {len(reservations)} reservations")
+                
+                export_data = []
+                for reservation, username, email, vehicle_number, location_name, spot_number in reservations:
+                    try:
+                        export_data.append({
+                            'reservation_id': reservation.id,
+                            'user_name': username,
+                            'user_email': email,
+                            'vehicle_number': vehicle_number or 'N/A',
+                            'parking_lot': location_name,
+                            'spot_number': spot_number,
+                            'parking_time': reservation.parking_time.isoformat() if reservation.parking_time else None,
+                            'leaving_time': reservation.leaving_time.isoformat() if reservation.leaving_time else 'Active',
+                            'parking_cost': float(reservation.parking_cost) if reservation.parking_cost else 0,
+                            'transaction_id': reservation.transaction_id or 'N/A',
+                            'payment_method': reservation.payment_method or 'N/A',
+                            'status': 'Completed' if reservation.leaving_time else 'Active'
+                        })
+                    except Exception as e:
+                        print(f"Error processing reservation {reservation.id}: {str(e)}")
+                        continue
+                
+                print(f"Successfully processed {len(export_data)} records")  # Debug logging
+                
+                return {
+                    'msg': 'Parking details export data generated',
+                    'data': export_data,
+                    'total_records': len(export_data)
+                }, 200
+                
+            elif export_type == 'monthly-report':
+                # Generate monthly summary
+                current_month = datetime.now().replace(day=1)
+                next_month = current_month + timedelta(days=32)
+                next_month = next_month.replace(day=1)
+                
+                month_reservations = ReserveSpot.query.filter(
+                    ReserveSpot.parking_time >= current_month,
+                    ReserveSpot.parking_time < next_month
+                ).count()
+                
+                month_revenue = db.session.query(db.func.sum(ReserveSpot.parking_cost)).filter(
+                    ReserveSpot.parking_time >= current_month,
+                    ReserveSpot.parking_time < next_month,
+                    ReserveSpot.leaving_time.isnot(None)
+                ).scalar() or 0
+                
+                return {
+                    'msg': 'Monthly report generated',
+                    'data': {
+                        'month': current_month.strftime('%B %Y'),
+                        'total_reservations': month_reservations,
+                        'total_revenue': round(float(month_revenue), 2),
+                        'report_generated_at': datetime.now().isoformat()
+                    }
+                }, 200
+                
+            else:
+                return {'msg': 'Invalid export type'}, 400
+                
+        except Exception as e:
+            print(f"Error in ExportResource: {str(e)}")  # Debug logging
+            import traceback
+            traceback.print_exc()  # Print full stack trace
+            return {'msg': 'Error generating export data', 'error': str(e)}, 500

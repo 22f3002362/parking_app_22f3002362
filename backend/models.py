@@ -48,5 +48,9 @@ class ReserveSpot(db.Model):
     parking_time = db.Column(db.DateTime, nullable=False)
     leaving_time = db.Column(db.DateTime, nullable=True)  # Changed to nullable=True for manual release system
     parking_cost = db.Column(db.Float, nullable=False)
+    
+    # Payment transaction details
+    transaction_id = db.Column(db.String(50), nullable=True)  # Store transaction ID from payment
+    payment_method = db.Column(db.String(20), nullable=True)  # Store payment method (qr/card/upi/cash)
 
 

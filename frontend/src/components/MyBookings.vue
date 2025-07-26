@@ -189,10 +189,10 @@
                   <div class="detail-row">
                     <span class="detail-label">
                       <i class="bi bi-currency-rupee"></i>
-                      Cost:
+                      Estimated Cost:
                     </span>
                     <span class="detail-value cost">
-                      {{ reservation.parking_cost ? '₹' + reservation.parking_cost : 'Calculated on Release' }}
+                      ₹{{ calculateEstimatedCost(reservation) }}
                     </span>
                   </div>
                 </div>
@@ -268,6 +268,23 @@
                     </span>
                     <span class="detail-value cost">₹{{ reservation.parking_cost || '0' }}</span>
                   </div>
+                  
+                  <!-- Transaction Details for Completed Reservations -->
+                  <div v-if="reservation.transaction_id" class="detail-row">
+                    <span class="detail-label">
+                      <i class="bi bi-receipt"></i>
+                      Transaction ID:
+                    </span>
+                    <span class="detail-value transaction-id">{{ reservation.transaction_id }}</span>
+                  </div>
+                  
+                  <div v-if="reservation.payment_method" class="detail-row">
+                    <span class="detail-label">
+                      <i class="bi bi-credit-card"></i>
+                      Payment Method:
+                    </span>
+                    <span class="detail-value">{{ reservation.payment_method }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -339,6 +356,23 @@
                       {{ reservation.parking_cost ? '₹' + reservation.parking_cost : (reservation.leaving_time ? '₹0' : 'Calculated on Release') }}
                     </span>
                   </div>
+                  
+                  <!-- Transaction Details for Completed Reservations -->
+                  <div v-if="reservation.transaction_id && reservation.leaving_time" class="detail-row">
+                    <span class="detail-label">
+                      <i class="bi bi-receipt"></i>
+                      Transaction ID:
+                    </span>
+                    <span class="detail-value transaction-id">{{ reservation.transaction_id }}</span>
+                  </div>
+                  
+                  <div v-if="reservation.payment_method && reservation.leaving_time" class="detail-row">
+                    <span class="detail-label">
+                      <i class="bi bi-credit-card"></i>
+                      Payment Method:
+                    </span>
+                    <span class="detail-value">{{ reservation.payment_method }}</span>
+                  </div>
                 </div>
               </div>
               
@@ -357,6 +391,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Payment Modal -->
+    <PaymentModal
+      :is-visible="showPaymentModal"
+      :reservation="currentReservation"
+      :amount="currentReservation?.parking_cost"
+      @close="closePaymentModal"
+      @payment-success="handlePaymentSuccess"
+    />
   </div>
 </template>
 
@@ -364,9 +407,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../services/api.js'
+import PaymentModal from './PaymentModal.vue'
 
 export default {
   name: 'MyBookings',
+  components: {
+    PaymentModal
+  },
   setup() {
     const router = useRouter()
     const loading = ref(false)
@@ -410,39 +457,138 @@ export default {
       }
     }
 
+    // Payment modal state
+    const showPaymentModal = ref(false)
+    const currentReservation = ref(null)
+
     const releaseParkingSpot = async (reservation) => {
-      if (releasing.value) return
+      console.log('🔥 releaseParkingSpot function called!')
+      console.log('Reservation data:', reservation)
       
-      if (!confirm(`Are you sure you want to release parking spot #${reservation.spot_id}?`)) {
+      if (releasing.value) {
+        console.log('Already releasing, returning')
         return
       }
+      
+      // Calculate parking cost
+      console.log('Calculating parking cost...')
+      const parkingCost = calculateParkingCost(reservation)
+      console.log('Calculated cost:', parkingCost)
+      
+      if (!confirm(`Are you sure you want to release parking spot #${reservation.spot_id}?\n\nEstimated cost: ₹${parkingCost}`)) {
+        console.log('User cancelled confirmation')
+        return
+      }
+      
+      // Show payment modal
+      console.log('Setting current reservation and showing modal...')
+      currentReservation.value = { ...reservation, parking_cost: parkingCost }
+      showPaymentModal.value = true
+      console.log('Modal should be visible now. showPaymentModal.value:', showPaymentModal.value)
+      console.log('currentReservation.value:', currentReservation.value)
+    }
 
+    const calculateEstimatedCost = (reservation) => {
+      if (!reservation.parking_time) return 20 // Default minimum cost
+      
+      const startTime = new Date(reservation.parking_time)
+      const now = new Date()
+      const diffMs = now - startTime
+      const diffHours = Math.ceil(diffMs / (1000 * 60 * 60)) // Round up to next hour
+      
+      // Base rate: ₹10 per hour, minimum ₹20
+      const costPerHour = 10
+      const totalCost = Math.max(diffHours * costPerHour, 20)
+      
+      return totalCost
+    }
+
+    const calculateParkingCost = (reservation) => {
+      return calculateEstimatedCost(reservation)
+    }
+
+    const handlePaymentSuccess = async (paymentData) => {
       releasing.value = true
       
       try {
-        const response = await api.releaseParkingSpot(reservation.id)
+        console.log('🔥 Payment successful, calling API to release parking spot...')
+        console.log('Payment data:', paymentData)
+        console.log('Current reservation:', currentReservation.value)
         
-        if (response.success) {
-          // Remove from active reservations and add to completed
-          const index = totalReservations.value.findIndex(r => r.id === reservation.id)
-          if (index !== -1) {
-            totalReservations.value[index] = {
-              ...totalReservations.value[index],
-              leaving_time: new Date().toISOString(),
-              parking_cost: response.total_cost
-            }
-          }
-          
-          alert(`Parking spot released successfully! Total cost: ₹${response.total_cost}`)
-        } else {
-          alert(response.message || 'Failed to release parking spot')
+        // Prepare transaction data for backend
+        const transactionData = {
+          transactionId: paymentData.transactionId,
+          paymentMethod: paymentData.paymentMethod
         }
+        
+        // Call the API to actually release the parking spot with transaction details
+        const response = await api.releaseParkingSpot(currentReservation.value.id, transactionData)
+        console.log('✅ Release API response:', response)
+        
+        // Update the reservation in local state with the actual response data
+        const index = totalReservations.value.findIndex(r => r.id === currentReservation.value.id)
+        if (index !== -1) {
+          totalReservations.value[index] = {
+            ...totalReservations.value[index],
+            leaving_time: response.reservation?.leaving_time || new Date().toISOString(),
+            parking_cost: response.reservation?.parking_cost || paymentData.amount,
+            transaction_id: response.reservation?.transaction_id || paymentData.transactionId,
+            payment_method: response.reservation?.payment_method || paymentData.paymentMethod,
+            status: 'completed'
+          }
+          console.log('✅ Updated reservation in local state')
+        }
+        
+        // Close payment modal
+        showPaymentModal.value = false
+        currentReservation.value = null
+        
+        // Show success message
+        alert(`Parking spot released successfully! Total cost: ₹${response.reservation?.parking_cost || paymentData.amount}\nTransaction ID: ${response.reservation?.transaction_id || paymentData.transactionId}`)
+        
+        // Refresh reservations data from server to ensure consistency
+        await fetchReservations()
+        
       } catch (err) {
-        console.error('Error releasing parking spot:', err)
-        alert('Failed to release parking spot. Please try again.')
+        console.error('❌ Error releasing parking spot:', err)
+        console.error('Error details:', err.response?.data || err.message)
+        
+        // Still close the modal since payment was successful
+        showPaymentModal.value = false
+        currentReservation.value = null
+        
+        // Show error but acknowledge payment success
+        const errorMsg = err.response?.data?.msg || err.message || 'Unknown error occurred'
+        alert(`Payment was successful, but there was an issue releasing the parking spot: ${errorMsg}\n\nPlease contact support with this transaction ID: ${paymentData.transactionId}`)
+        
+        // Try to refresh data anyway
+        try {
+          await fetchReservations()
+        } catch (refreshErr) {
+          console.error('Failed to refresh reservations:', refreshErr)
+        }
       } finally {
         releasing.value = false
       }
+    }
+
+    const closePaymentModal = () => {
+      showPaymentModal.value = false
+      currentReservation.value = null
+    }
+
+    const testModal = () => {
+      console.log('🧪 Test modal button clicked!')
+      const testReservation = {
+        id: 999,
+        spot_id: 42,
+        lot_name: 'Test Mall',
+        parking_time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        parking_cost: 50
+      }
+      currentReservation.value = testReservation
+      showPaymentModal.value = true
+      console.log('✅ Test modal should be visible now!')
     }
 
     const formatDateTime = (dateString) => {
@@ -525,8 +671,14 @@ export default {
       activeReservations,
       completedReservations,
       sortedReservations,
+      showPaymentModal,
+      currentReservation,
       fetchReservations,
       releaseParkingSpot,
+      handlePaymentSuccess,
+      closePaymentModal,
+      testModal,
+      calculateEstimatedCost,
       formatDateTime,
       calculateDuration,
       calculateTotalDuration,
@@ -1117,6 +1269,16 @@ export default {
 .detail-value.cost {
   color: #4ecdc4;
   font-size: 1.1rem;
+}
+
+.detail-value.transaction-id {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #00a8e8;
+  font-weight: 600;
+  background: rgba(0, 168, 232, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
 }
 
 .card-actions {

@@ -12,7 +12,9 @@ from controllers import (
     UserReservationsResource,
     LoginResource,
     RegisterResource,
-    BookingResource
+    BookingResource,
+    ReportsResource,
+    ExportResource
 )
 from flask_cors import CORS
 from datetime import timedelta
@@ -45,6 +47,10 @@ api.add_resource(ReserveSpotResource, '/reservations', '/reservations/<reservati
 
 #endpoints for booking
 api.add_resource(BookingResource, '/booking/<action>')
+
+#endpoints for reports and analytics
+api.add_resource(ReportsResource, '/reports')
+api.add_resource(ExportResource, '/export/<export_type>')
 
 # Configure CORS properly
 CORS(app, origins=["http://localhost:5174", "http://127.0.0.1:5174"])
