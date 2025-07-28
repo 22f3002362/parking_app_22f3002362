@@ -1,10 +1,92 @@
 from flask_restful import Resource, Api
-from flask import request
+from flask import request, current_app
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from models import db, User, ParkingLot, ParkingSpot, ReserveSpot
 from datetime import datetime, timedelta
 import calendar
 import math
+import json
+
+# Redis utility functions
+def get_redis_client():
+    """Get Redis client from Flask app context"""
+    return getattr(current_app, 'redis_client', None)
+
+def cache_set(key, value, expiry_seconds=300):
+    """Set cache with expiry"""
+    redis_client = get_redis_client()
+    if redis_client:
+        try:
+            redis_client.setex(key, expiry_seconds, json.dumps(value))
+            return True
+        except Exception as e:
+            print(f"Redis cache set error: {e}")
+    return False
+
+def cache_get(key):
+    """Get cached value"""
+    redis_client = get_redis_client()
+    if redis_client:
+        try:
+            cached_data = redis_client.get(key)
+            if cached_data:
+                return json.loads(cached_data)
+        except Exception as e:
+            print(f"Redis cache get error: {e}")
+    return None
+
+def cache_delete(key):
+    """Delete cache key"""
+    redis_client = get_redis_client()
+    if redis_client:
+        try:
+            redis_client.delete(key)
+            return True
+        except Exception as e:
+            print(f"Redis cache delete error: {e}")
+    return False
+
+def increment_counter(key):
+    """Increment counter in Redis"""
+    redis_client = get_redis_client()
+    if redis_client:
+        try:
+            return redis_client.incr(key)
+        except Exception as e:
+            print(f"Redis counter error: {e}")
+    return 0
+
+def add_to_set(key, value, expiry_seconds=3600):
+    """Add value to Redis set"""
+    redis_client = get_redis_client()
+    if redis_client:
+        try:
+            redis_client.sadd(key, value)
+            redis_client.expire(key, expiry_seconds)
+            return True
+        except Exception as e:
+            print(f"Redis set error: {e}")
+    return False
+
+def rate_limit_check(user_id, endpoint, max_requests=100, window_seconds=3600):
+    """Check rate limit for user"""
+    redis_client = get_redis_client()
+    if redis_client:
+        try:
+            key = f'rate_limit:{user_id}:{endpoint}'
+            current_requests = redis_client.get(key)
+            
+            if current_requests is None:
+                redis_client.setex(key, window_seconds, 1)
+                return True
+            elif int(current_requests) < max_requests:
+                redis_client.incr(key)
+                return True
+            else:
+                return False
+        except Exception as e:
+            print(f"Redis rate limit error: {e}")
+    return True  # Allow if Redis is unavailable
 
 class UserResource(Resource):
     @jwt_required()
@@ -12,14 +94,27 @@ class UserResource(Resource):
         current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
+        # Rate limiting
+        if not rate_limit_check(current_user_id, 'get_users', 50, 3600):
+            return {'msg': 'Rate limit exceeded. Try again later.'}, 429
+        
+        # Increment API usage counter
+        increment_counter('api_calls:users:get')
+        
         if user_id:
             # Only allow users to access their own data or admin to access any
             if current_user.role != 'admin' and current_user_id != user_id:
                 return {'msg': 'Access denied'}, 403
+            
+            # Try to get user from cache first
+            cache_key = f'user:{user_id}'
+            cached_user = cache_get(cache_key)
+            if cached_user:
+                return cached_user, 200
                 
             user = User.query.get(user_id)
             if user:
-                return {
+                user_data = {
                     'msg': 'User found',
                     'user': {
                         'id': user.id,
@@ -29,12 +124,21 @@ class UserResource(Resource):
                         'vehicle_number': user.vehicle_number,
                         'phone_number': user.phone_number if user.phone_number else None
                     }
-                }, 200
+                }
+                # Cache user data for 10 minutes
+                cache_set(cache_key, user_data, 600)
+                return user_data, 200
             return {'msg': 'User not found'}, 404
         
         # Only admin can get all users
         if current_user.role != 'admin':
             return {'msg': 'Access denied. Admin only.'}, 403
+        
+        # Try to get users list from cache
+        cache_key = 'users:all'
+        cached_users = cache_get(cache_key)
+        if cached_users:
+            return cached_users, 200
             
         users = User.query.all()
         user_list = []
@@ -47,7 +151,11 @@ class UserResource(Resource):
                 'vehicle_number': user.vehicle_number,
                 'phone_number': user.phone_number
             })
-        return {'msg': 'Users retrieved successfully', 'users': user_list}, 200
+        
+        response_data = {'msg': 'Users retrieved successfully', 'users': user_list}
+        # Cache users list for 5 minutes
+        cache_set(cache_key, response_data, 300)
+        return response_data, 200
     
     def post(self):
         data = request.get_json()
@@ -90,6 +198,11 @@ class UserResource(Resource):
         try:
             db.session.add(user)
             db.session.commit()
+            
+            # Invalidate users cache when new user is created
+            cache_delete('users:all')
+            increment_counter('users_created')
+            
             return {
                 'msg': 'User created successfully',
                 'user': {
@@ -158,6 +271,11 @@ class UserResource(Resource):
         
         try:
             db.session.commit()
+            
+            # Invalidate user cache when updated
+            cache_delete(f'user:{user.id}')
+            cache_delete('users:all')
+            
             return {
                 'msg': 'User updated successfully',
                 'user': {
@@ -189,6 +307,12 @@ class UserResource(Resource):
         try:
             db.session.delete(user)
             db.session.commit()
+            
+            # Invalidate user cache when deleted
+            cache_delete(f'user:{user_id}')
+            cache_delete('users:all')
+            increment_counter('users_deleted')
+            
             return {'msg': 'User deleted successfully'}, 200
         except Exception as e:
             db.session.rollback()
@@ -198,10 +322,19 @@ class UserResource(Resource):
 class ParkingLotResource(Resource):
     
     def get(self, lot_id=None):
+        # Increment API usage counter
+        increment_counter('api_calls:parking_lots:get')
+        
         if lot_id:
+            # Try to get parking lot from cache first
+            cache_key = f'parking_lot:{lot_id}'
+            cached_lot = cache_get(cache_key)
+            if cached_lot:
+                return cached_lot, 200
+                
             lot = ParkingLot.query.get(lot_id)
             if lot:
-                return {
+                lot_data = {
                     'msg': 'Parking lot found',
                     'lot': {
                         'id': lot.id,
@@ -212,8 +345,17 @@ class ParkingLotResource(Resource):
                         'number_of_slots': lot.number_of_slots,
                         'available_slots': lot.available_slots
                     }
-                }, 200
+                }
+                # Cache parking lot data for 15 minutes
+                cache_set(cache_key, lot_data, 900)
+                return lot_data, 200
             return {'msg': 'Parking lot not found'}, 404
+        
+        # Try to get all parking lots from cache
+        cache_key = 'parking_lots:all'
+        cached_lots = cache_get(cache_key)
+        if cached_lots:
+            return cached_lots, 200
         
         lots = ParkingLot.query.all()
         lot_list = []
@@ -227,7 +369,11 @@ class ParkingLotResource(Resource):
                 'number_of_slots': lot.number_of_slots,
                 'available_slots': lot.available_slots
             })
-        return {'msg': 'Parking lots retrieved successfully', 'lots': lot_list}, 200
+        
+        response_data = {'msg': 'Parking lots retrieved successfully', 'lots': lot_list}
+        # Cache parking lots for 10 minutes (they change frequently due to availability)
+        cache_set(cache_key, response_data, 600)
+        return response_data, 200
     
     @jwt_required()
     def post(self):
@@ -270,6 +416,10 @@ class ParkingLotResource(Resource):
                 db.session.add(spot)
             
             db.session.commit()
+            
+            # Invalidate parking lots cache when new lot is created
+            cache_delete('parking_lots:all')
+            increment_counter('parking_lots_created')
             
             return {
                 'msg': 'Parking lot created successfully',
@@ -316,6 +466,11 @@ class ParkingLotResource(Resource):
         
         try:
             db.session.commit()
+            
+            # Invalidate parking lot cache when updated
+            cache_delete(f'parking_lot:{lot_id}')
+            cache_delete('parking_lots:all')
+            
             return {
                 'msg': 'Parking lot updated successfully',
                 'lot': {
@@ -350,6 +505,12 @@ class ParkingLotResource(Resource):
             ParkingSpot.query.filter_by(lot_id=lot_id).delete()
             db.session.delete(lot)
             db.session.commit()
+            
+            # Invalidate parking lot cache when deleted
+            cache_delete(f'parking_lot:{lot_id}')
+            cache_delete('parking_lots:all')
+            increment_counter('parking_lots_deleted')
+            
             return {'msg': 'Parking lot deleted successfully'}, 200
         except Exception as e:
             db.session.rollback()
@@ -536,6 +697,14 @@ class ReserveSpotResource(Resource):
             db.session.add(reservation)
             db.session.commit()
             
+            # Invalidate parking lots cache since availability changed
+            cache_delete('parking_lots:all')
+            cache_delete(f'parking_lot:{lot.id}')
+            
+            # Increment reservation counter
+            increment_counter('total_reservations')
+            increment_counter(f'daily_reservations:{datetime.now().strftime("%Y-%m-%d")}')
+            
             return {
                 'msg': 'Reservation created successfully',
                 'reservation': {
@@ -578,6 +747,15 @@ class ReserveSpotResource(Resource):
             
             db.session.delete(reservation)
             db.session.commit()
+            
+            # Invalidate parking lots cache since availability changed
+            if spot:
+                cache_delete('parking_lots:all')
+                cache_delete(f'parking_lot:{spot.lot_id}')
+            
+            # Increment cancellation counter
+            increment_counter('reservations_cancelled')
+            
             return {'msg': 'Reservation cancelled successfully'}, 200
         except Exception as e:
             db.session.rollback()
@@ -659,6 +837,25 @@ class LoginResource(Resource):
         # Create JWT token with string identity
         access_token = create_access_token(identity=str(user.id))
         
+        # Cache user session data for 12 hours
+        session_data = {
+            'user_id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role,
+            'vehicle_number': user.vehicle_number,
+            'login_time': datetime.now().isoformat(),
+            'last_activity': datetime.now().isoformat()
+        }
+        cache_set(f'user_session:{user.id}', session_data, 43200)  # 12 hours
+        
+        # Add user to active users set
+        add_to_set('active_users', user.id, 43200)
+        
+        # Increment login counter
+        increment_counter('total_logins')
+        increment_counter(f'daily_logins:{datetime.now().strftime("%Y-%m-%d")}')
+        
         return {
             'msg': 'Login successful',
             'token': access_token,
@@ -725,6 +922,31 @@ class RegisterResource(Resource):
             # Create JWT token for immediate login with string identity
             access_token = create_access_token(identity=str(user.id))
             
+            # Cache user session data for 12 hours (auto-login after registration)
+            session_data = {
+                'user_id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role,
+                'vehicle_number': user.vehicle_number,
+                'login_time': datetime.now().isoformat(),
+                'last_activity': datetime.now().isoformat()
+            }
+            cache_set(f'user_session:{user.id}', session_data, 43200)  # 12 hours
+            
+            # Add user to active users set
+            add_to_set('active_users', user.id, 43200)
+            
+            # Increment registration counter
+            increment_counter('total_registrations')
+            increment_counter(f'daily_registrations:{datetime.now().strftime("%Y-%m-%d")}')
+            
+            # Invalidate users cache
+            cache_delete('users:all')
+            
+            # Send welcome email
+            # Email functionality not implemented yet
+            
             return {
                 'msg': 'User registered successfully',
                 'token': access_token,
@@ -740,6 +962,29 @@ class RegisterResource(Resource):
         except Exception as e:
             db.session.rollback()
             return {'msg': 'Registration failed. Please try again.'}, 500
+
+
+class LogoutResource(Resource):
+    @jwt_required()
+    def post(self):
+        """Handle user logout and clear Redis session"""
+        current_user_id = int(get_jwt_identity())
+        
+        # Clear user session from Redis
+        cache_delete(f'user_session:{current_user_id}')
+        
+        # Remove user from active users set
+        redis_client = get_redis_client()
+        if redis_client:
+            try:
+                redis_client.srem('active_users', current_user_id)
+            except Exception as e:
+                print(f"Redis set removal error: {e}")
+        
+        # Increment logout counter
+        increment_counter('total_logouts')
+        
+        return {'msg': 'Logged out successfully'}, 200
 
 
 class BookingResource(Resource):
@@ -820,6 +1065,14 @@ class BookingResource(Resource):
             
             db.session.add(reservation)
             db.session.commit()
+            
+            # Invalidate parking lots cache since availability changed
+            cache_delete('parking_lots:all')
+            cache_delete(f'parking_lot:{lot.id}')
+            
+            # Increment reservation counter
+            increment_counter('total_reservations')
+            increment_counter(f'daily_reservations:{datetime.now().strftime("%Y-%m-%d")}')
             
             return {
                 'msg': 'Parking spot booked successfully',
@@ -943,6 +1196,10 @@ class BookingResource(Resource):
                 lot.available_slots += 1
                 
                 db.session.commit()
+                
+                # Invalidate parking lots cache since availability changed
+                cache_delete('parking_lots:all')
+                cache_delete(f'parking_lot:{lot.id}')
                 
                 return {
                     'msg': 'Parking spot released successfully',
@@ -1092,6 +1349,32 @@ class ReportsResource(Resource):
                 {'method': method, 'count': count} for method, count in payment_methods
             ]
             
+            # Get Redis analytics
+            redis_stats = {}
+            redis_client = get_redis_client()
+            if redis_client:
+                try:
+                    redis_stats = {
+                        'total_api_calls': int(redis_client.get('api_calls:users:get') or 0) + int(redis_client.get('api_calls:parking_lots:get') or 0),
+                        'total_logins': int(redis_client.get('total_logins') or 0),
+                        'total_logouts': int(redis_client.get('total_logouts') or 0),
+                        'total_registrations': int(redis_client.get('total_registrations') or 0),
+                        'active_users_count': redis_client.scard('active_users'),
+                        'users_created': int(redis_client.get('users_created') or 0),
+                        'users_deleted': int(redis_client.get('users_deleted') or 0),
+                        'parking_lots_created': int(redis_client.get('parking_lots_created') or 0),
+                        'parking_lots_deleted': int(redis_client.get('parking_lots_deleted') or 0),
+                        'reservations_cancelled': int(redis_client.get('reservations_cancelled') or 0),
+                        'today_logins': int(redis_client.get(f'daily_logins:{datetime.now().strftime("%Y-%m-%d")}') or 0),
+                        'today_registrations': int(redis_client.get(f'daily_registrations:{datetime.now().strftime("%Y-%m-%d")}') or 0),
+                        'today_reservations': int(redis_client.get(f'daily_reservations:{datetime.now().strftime("%Y-%m-%d")}') or 0)
+                    }
+                except Exception as e:
+                    print(f"Error getting Redis stats: {e}")
+                    redis_stats = {'error': 'Unable to fetch Redis statistics'}
+            else:
+                redis_stats = {'error': 'Redis not available'}
+            
             return {
                 'msg': 'Reports data retrieved successfully',
                 'data': {
@@ -1115,7 +1398,8 @@ class ReportsResource(Resource):
                         'total_spots': sum(lot['total_spots'] for lot in lot_stats),
                         'occupied_spots': sum(lot['occupied_spots'] for lot in lot_stats),
                         'available_spots': sum(lot['available_spots'] for lot in lot_stats)
-                    }
+                    },
+                    'redis_analytics': redis_stats
                 }
             }, 200
             

@@ -1,0 +1,15 @@
+flask
+flask-cors
+flask-sqlalchemy
+flask-migrate
+flask-restful
+flask-jwt-extended
+flask-mail
+flask-caching
+redis
+celery[redis]
+requests
+python-dotenv
+email-validator
+kombu
+
