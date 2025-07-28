@@ -592,9 +592,6 @@ class UserReservationsResource(Resource):
         current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
-        # print(f"UserReservationsResource: user_id parameter: {user_id}, type: {type(user_id)}")
-        # print(f"Current user ID: {current_user_id}, Current user: {current_user}")
-        
         # Convert user_id to int if it's a string
         try:
             user_id = int(user_id)
@@ -609,19 +606,15 @@ class UserReservationsResource(Resource):
         if not user:
             return {'msg': 'User not found'}, 404
         
-        # print(f"Fetching reservations for user: {user.username}")
-        
         try:
             reservations = ReserveSpot.query.filter_by(user_id=user_id).all()
             # print(f"Found {len(reservations)} reservations")
         except Exception as e:
-            # print(f"Database error when fetching reservations: {str(e)}")
             return {'msg': 'Database error occurred', 'error': str(e)}, 500
         
         reservation_list = []
         for reservation in reservations:
             try:
-                # print(f"Processing reservation: {reservation.id}")
                 # Get spot and lot information
                 spot = ParkingSpot.query.get(reservation.spot_id)
                 lot = ParkingLot.query.get(spot.lot_id) if spot else None
@@ -639,7 +632,6 @@ class UserReservationsResource(Resource):
                     'payment_method': reservation.payment_method
                 })
             except Exception as e:
-                # print(f"Error processing reservation {reservation.id}: {str(e)}")
                 continue  # Skip this reservation but continue with others
         
         result = {
@@ -647,7 +639,6 @@ class UserReservationsResource(Resource):
             'user': user.username,
             'reservations': reservation_list
         }
-        # print(f"Returning result: {result}")
         return result, 200
 
 
@@ -920,8 +911,6 @@ class BookingResource(Resource):
                 duration_hours = duration_seconds / 3600
                 
                 # Calculate cost based on full hourly rates:
-                # - Minimum 1 hour charge regardless of actual time
-                # - Any additional time is charged as full hours (rounded up)
                 if duration_hours <= 1:
                     # Any parking up to 1 hour is charged as 1 full hour
                     charged_hours = 1
@@ -933,7 +922,7 @@ class BookingResource(Resource):
                 # Calculate final cost
                 reservation.parking_cost = float(charged_hours * lot.price)
                 
-                # Store transaction details if provided
+                # Store transaction details
                 if transaction_id:
                     reservation.transaction_id = transaction_id
                 if payment_method:
@@ -1198,7 +1187,6 @@ class UserReportsResource(Resource):
                             loc_name = lot.location_name
                             location_counts[loc_name] = location_counts.get(loc_name, 0) + 1
                 except Exception as e:
-                    print(f"Error processing location for reservation {res.id}: {str(e)}")
                     continue
             
             favorite_location = max(location_counts.items(), key=lambda x: x[1]) if location_counts else ('N/A', 0)
@@ -1301,7 +1289,6 @@ class UserReportsResource(Resource):
             }, 200
             
         except Exception as e:
-            print(f"Error in user reports: {str(e)}")
             return {'msg': 'Error retrieving user reports data', 'error': str(e)}, 500
 
 
@@ -1351,7 +1338,6 @@ class UserBookingHistoryResource(Resource):
                     booking_history.append(booking_data)
                     
                 except Exception as e:
-                    print(f"Error processing reservation {res.id}: {str(e)}")
                     # Add basic reservation info even if there's an error with details
                     booking_history.append({
                         'id': res.id,
@@ -1371,7 +1357,6 @@ class UserBookingHistoryResource(Resource):
             }, 200
             
         except Exception as e:
-            print(f"Error in user booking history: {str(e)}")
             return {'msg': 'Error retrieving booking history', 'error': str(e)}, 500
 
 
@@ -1386,16 +1371,11 @@ class ExportResource(Resource):
             if current_user.role != 'admin':
                 return {'msg': 'Access denied. Admin only.'}, 403
             
-            print(f"Export request for type: {export_type}")  # Debug logging
-            
         except Exception as e:
-            print(f"Authentication error in export: {str(e)}")
             return {'msg': 'Authentication error', 'error': str(e)}, 401
         
         try:
-            if export_type == 'parking-details':
-                print("Starting parking-details export...")  # Debug logging
-                
+            if export_type == 'parking-details':                
                 # Alternative approach: Get reservations and fetch related data separately
                 try:
                     # First, try the join approach
@@ -1414,10 +1394,7 @@ class ExportResource(Resource):
                         ParkingLot, ParkingSpot.lot_id == ParkingLot.id
                     ).all()
                     
-                    print(f"Join approach successful: Found {len(reservations)} reservations")
-                    
                 except Exception as join_error:
-                    print(f"Join approach failed: {str(join_error)}")
                     # Fallback: Get data separately
                     all_reservations = ReserveSpot.query.all()
                     reservations = []
@@ -1437,11 +1414,8 @@ class ExportResource(Resource):
                                 spot.id if spot else 'Unknown'
                             ))
                         except Exception as e:
-                            print(f"Error processing reservation {reservation.id}: {str(e)}")
                             continue
                     
-                    print(f"Fallback approach: Found {len(reservations)} reservations")
-                
                 export_data = []
                 for reservation, username, email, vehicle_number, location_name, spot_number in reservations:
                     try:
@@ -1460,11 +1434,8 @@ class ExportResource(Resource):
                             'status': 'Completed' if reservation.leaving_time else 'Active'
                         })
                     except Exception as e:
-                        print(f"Error processing reservation {reservation.id}: {str(e)}")
                         continue
-                
-                print(f"Successfully processed {len(export_data)} records")  # Debug logging
-                
+
                 return {
                     'msg': 'Parking details export data generated',
                     'data': export_data,
@@ -1502,7 +1473,6 @@ class ExportResource(Resource):
                 return {'msg': 'Invalid export type'}, 400
                 
         except Exception as e:
-            print(f"Error in ExportResource: {str(e)}")  # Debug logging
             import traceback
             traceback.print_exc()  # Print full stack trace
             return {'msg': 'Error generating export data', 'error': str(e)}, 500
