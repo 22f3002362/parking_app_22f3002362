@@ -311,6 +311,24 @@ const apiService = {
     }
   },
 
+  async getUserReportsData() {
+    try {
+      const response = await apiClient.get('/user-reports');
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getUserBookingHistory() {
+    try {
+      const response = await apiClient.get('/user-booking-history');
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   async exportParkingDetails() {
     try {
       const response = await apiClient.get('/export/parking-details');
@@ -359,6 +377,8 @@ export const {
   getUserReservations,
   healthCheck,
   getReportsData,
+  getUserReportsData,
+  getUserBookingHistory,
   exportParkingDetails,
   generateMonthlyReport
 } = apiService;

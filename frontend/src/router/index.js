@@ -25,11 +25,6 @@ const router = createRouter({
       component: () => import('../components/AdminDashboard.vue'),
     },
     {
-      path: '/parking-management',
-      name: 'parking-management',
-      component: () => import('../components/ParkingManagement.vue'),
-    },
-    {
       path: '/manage-users',
       name: 'manage-users',
       component: () => import('../components/UserManagement.vue'),
@@ -58,6 +53,11 @@ const router = createRouter({
       path: '/admin-reports',
       name: 'admin-reports',
       component: () => import('../components/AdminReports.vue'),
+    },
+    {
+      path: '/user-reports',
+      name: 'user-reports',
+      component: () => import('../components/UserReports.vue'),
     }
   ],
 })

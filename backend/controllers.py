@@ -3,6 +3,8 @@ from flask import request
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from models import db, User, ParkingLot, ParkingSpot, ReserveSpot
 from datetime import datetime, timedelta
+import calendar
+import math
 
 class UserResource(Resource):
     @jwt_required()
@@ -629,6 +631,7 @@ class UserReservationsResource(Resource):
                     'spot_id': reservation.spot_id,
                     'lot_name': lot.location_name if lot else 'Unknown',
                     'lot_address': lot.address if lot else 'Unknown',
+                    'lot_price': lot.price if lot else 10,  # Include hourly rate
                     'parking_time': reservation.parking_time.isoformat(),
                     'leaving_time': reservation.leaving_time.isoformat() if reservation.leaving_time else None,
                     'parking_cost': reservation.parking_cost,
@@ -1129,6 +1132,247 @@ class ReportsResource(Resource):
             
         except Exception as e:
             return {'msg': 'Error retrieving reports data', 'error': str(e)}, 500
+
+
+class UserReportsResource(Resource):
+    @jwt_required()
+    def get(self):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # Users can only access their own reports
+        if not current_user:
+            return {'msg': 'User not found'}, 404
+        
+        try:
+            # Get user's reservation statistics
+            user_reservations = ReserveSpot.query.filter_by(user_id=current_user_id).all()
+            
+            if not user_reservations:
+                # Return empty data structure if no reservations
+                return {
+                    'status': 'success',
+                    'msg': 'User reports data retrieved successfully',
+                    'data': {
+                        'stats': {
+                            'totalSpent': 0,
+                            'totalBookings': 0,
+                            'activeBookings': 0,
+                            'totalHours': 0,
+                            'avgHoursPerBooking': 0,
+                            'favoriteLocation': 'N/A',
+                            'favoriteLocationCount': 0
+                        },
+                        'monthlySpending': [],
+                        'bookingFrequency': [],
+                        'favoriteLocations': [],
+                        'dailyUsage': [],
+                        'hourlyUsage': [],
+                        'durationAnalysis': []
+                    }
+                }, 200
+            
+            # Calculate user statistics
+            total_spent = sum(float(res.parking_cost or 0) for res in user_reservations if res.leaving_time)
+            total_bookings = len(user_reservations)
+            active_bookings = len([res for res in user_reservations if not res.leaving_time])
+            
+            # Calculate total hours
+            total_hours = 0
+            for res in user_reservations:
+                if res.leaving_time and res.parking_time:  # Use parking_time instead of arrival_time
+                    duration = res.leaving_time - res.parking_time
+                    total_hours += duration.total_seconds() / 3600
+            
+            avg_hours_per_booking = total_hours / total_bookings if total_bookings > 0 else 0
+            
+            # Find favorite location
+            location_counts = {}
+            for res in user_reservations:
+                try:
+                    # Get the parking spot and lot information
+                    spot = ParkingSpot.query.get(res.spot_id)
+                    if spot:
+                        lot = ParkingLot.query.get(spot.lot_id)
+                        if lot:
+                            loc_name = lot.location_name
+                            location_counts[loc_name] = location_counts.get(loc_name, 0) + 1
+                except Exception as e:
+                    print(f"Error processing location for reservation {res.id}: {str(e)}")
+                    continue
+            
+            favorite_location = max(location_counts.items(), key=lambda x: x[1]) if location_counts else ('N/A', 0)
+            
+            # Monthly spending analysis (last 12 months)
+            monthly_spending = []
+            monthly_bookings = []
+            current_date = datetime.now()
+            
+            for i in range(12):
+                month_start = current_date.replace(day=1) - timedelta(days=i*30)
+                month_name = calendar.month_abbr[month_start.month]
+                
+                month_reservations = [res for res in user_reservations 
+                                    if res.parking_time and res.parking_time.month == month_start.month 
+                                    and res.parking_time.year == month_start.year]  # Use parking_time
+                
+                month_total = sum(float(res.parking_cost or 0) for res in month_reservations if res.leaving_time)
+                month_count = len(month_reservations)
+                
+                monthly_spending.insert(0, {'month': month_name, 'amount': round(month_total, 2)})
+                monthly_bookings.insert(0, {'month': month_name, 'bookings': month_count})
+            
+            # Location analysis
+            favorite_locations_data = []
+            for location, count in sorted(location_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+                favorite_locations_data.append({'name': location, 'count': count})
+            
+            # Daily usage pattern
+            daily_usage = {'Monday': 0, 'Tuesday': 0, 'Wednesday': 0, 'Thursday': 0, 
+                          'Friday': 0, 'Saturday': 0, 'Sunday': 0}
+            
+            for res in user_reservations:
+                if res.parking_time:  # Use parking_time instead of arrival_time
+                    day_name = res.parking_time.strftime('%A')
+                    daily_usage[day_name] += 1
+            
+            daily_usage_data = [{'day': day, 'sessions': count} for day, count in daily_usage.items()]
+            
+            # Hourly usage pattern
+            hourly_usage = {}
+            for hour in range(24):
+                hourly_usage[hour] = 0
+            
+            for res in user_reservations:
+                if res.parking_time:  # Use parking_time instead of arrival_time
+                    hour = res.parking_time.hour
+                    hourly_usage[hour] += 1
+            
+            hourly_usage_data = []
+            for hour in range(6, 24):  # 6 AM to 11 PM
+                hour_label = f"{hour % 12 if hour % 12 != 0 else 12} {'AM' if hour < 12 else 'PM'}"
+                hourly_usage_data.append({'hour': hour_label, 'sessions': hourly_usage[hour]})
+            
+            # Duration analysis
+            duration_ranges = {
+                '< 1 hour': 0, '1-2 hours': 0, '2-4 hours': 0,
+                '4-6 hours': 0, '6-8 hours': 0, '> 8 hours': 0
+            }
+            
+            for res in user_reservations:
+                if res.leaving_time and res.parking_time:  # Use parking_time instead of arrival_time
+                    duration = (res.leaving_time - res.parking_time).total_seconds() / 3600
+                    if duration < 1:
+                        duration_ranges['< 1 hour'] += 1
+                    elif duration < 2:
+                        duration_ranges['1-2 hours'] += 1
+                    elif duration < 4:
+                        duration_ranges['2-4 hours'] += 1
+                    elif duration < 6:
+                        duration_ranges['4-6 hours'] += 1
+                    elif duration < 8:
+                        duration_ranges['6-8 hours'] += 1
+                    else:
+                        duration_ranges['> 8 hours'] += 1
+            
+            duration_analysis_data = [{'duration': duration, 'count': count} 
+                                    for duration, count in duration_ranges.items()]
+            
+            return {
+                'status': 'success',
+                'msg': 'User reports data retrieved successfully',
+                'data': {
+                    'stats': {
+                        'totalSpent': round(total_spent, 2),
+                        'totalBookings': total_bookings,
+                        'activeBookings': active_bookings,
+                        'totalHours': round(total_hours, 1),
+                        'avgHoursPerBooking': round(avg_hours_per_booking, 1),
+                        'favoriteLocation': favorite_location[0],
+                        'favoriteLocationCount': favorite_location[1]
+                    },
+                    'monthlySpending': monthly_spending,
+                    'bookingFrequency': monthly_bookings,
+                    'favoriteLocations': favorite_locations_data,
+                    'dailyUsage': daily_usage_data,
+                    'hourlyUsage': hourly_usage_data,
+                    'durationAnalysis': duration_analysis_data
+                }
+            }, 200
+            
+        except Exception as e:
+            print(f"Error in user reports: {str(e)}")
+            return {'msg': 'Error retrieving user reports data', 'error': str(e)}, 500
+
+
+class UserBookingHistoryResource(Resource):
+    @jwt_required()
+    def get(self):
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        # Users can only access their own booking history
+        if not current_user:
+            return {'msg': 'User not found'}, 404
+        
+        try:
+            # Get user's reservation history
+            user_reservations = ReserveSpot.query.filter_by(user_id=current_user_id).order_by(ReserveSpot.parking_time.desc()).all()
+            
+            booking_history = []
+            for res in user_reservations:
+                try:
+                    # Get the parking spot and lot information
+                    spot = ParkingSpot.query.get(res.spot_id)
+                    lot = None
+                    if spot:
+                        lot = ParkingLot.query.get(spot.lot_id)
+                    
+                    # Calculate duration if available
+                    duration_hours = None
+                    if res.leaving_time and res.parking_time:
+                        duration = res.leaving_time - res.parking_time
+                        duration_hours = round(duration.total_seconds() / 3600, 2)
+                    
+                    booking_data = {
+                        'id': res.id,
+                        'start_time': res.parking_time.isoformat() if res.parking_time else None,
+                        'end_time': res.leaving_time.isoformat() if res.leaving_time else None,
+                        'duration_hours': duration_hours,
+                        'total_amount': float(res.parking_cost) if res.parking_cost else 0,
+                        'status': 'Completed' if res.leaving_time else 'Active',
+                        'vehicle_number': current_user.vehicle_number,
+                        'parking_space': {
+                            'id': spot.id if spot else None,
+                            'name': f"{lot.location_name} - Spot {spot.id}" if lot and spot else 'Unknown Location'
+                        } if spot else {'id': None, 'name': 'Unknown Location'}
+                    }
+                    
+                    booking_history.append(booking_data)
+                    
+                except Exception as e:
+                    print(f"Error processing reservation {res.id}: {str(e)}")
+                    # Add basic reservation info even if there's an error with details
+                    booking_history.append({
+                        'id': res.id,
+                        'start_time': res.parking_time.isoformat() if res.parking_time else None,
+                        'end_time': res.leaving_time.isoformat() if res.leaving_time else None,
+                        'duration_hours': None,
+                        'total_amount': float(res.parking_cost) if res.parking_cost else 0,
+                        'status': 'Completed' if res.leaving_time else 'Active',
+                        'vehicle_number': current_user.vehicle_number,
+                        'parking_space': {'id': None, 'name': 'Unknown Location'}
+                    })
+            
+            return {
+                'status': 'success',
+                'msg': 'Booking history retrieved successfully',
+                'data': booking_history
+            }, 200
+            
+        except Exception as e:
+            print(f"Error in user booking history: {str(e)}")
+            return {'msg': 'Error retrieving booking history', 'error': str(e)}, 500
 
 
 class ExportResource(Resource):

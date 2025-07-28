@@ -13,7 +13,8 @@
           </div>
         </div>
         
-        <div class="navbar-menu">
+        <!-- Desktop Menu -->
+        <div class="navbar-menu desktop-menu">
           <div class="nav-links">
             <router-link to="/user-dashboard" class="nav-link active">
               <i class="bi bi-house"></i>
@@ -26,6 +27,10 @@
             <router-link to="/my-bookings" class="nav-link">
               <i class="bi bi-calendar-check"></i>
               <span>My Bookings</span>
+            </router-link>
+            <router-link to="/user-reports" class="nav-link">
+              <i class="bi bi-graph-up"></i>
+              <span>Reports</span>
             </router-link>
           </div>
           
@@ -44,6 +49,55 @@
               <span>Logout</span>
             </button>
           </div>
+        </div>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" @click="toggleMobileMenu">
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
+
+      <!-- Mobile Menu Dropdown -->
+      <div class="mobile-menu" :class="{ 'active': isMobileMenuOpen }">
+        <div class="mobile-nav-section">
+          <div class="mobile-nav-header">
+            <i class="bi bi-list"></i>
+            <span>Navigation</span>
+          </div>
+          <div class="mobile-nav-links">
+            <router-link to="/user-dashboard" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-house"></i>
+              <span>Dashboard</span>
+            </router-link>
+            <router-link to="/find-parking" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-search"></i>
+              <span>Find Parking</span>
+            </router-link>
+            <router-link to="/my-bookings" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-calendar-check"></i>
+              <span>My Bookings</span>
+            </router-link>
+            <router-link to="/user-reports" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-graph-up"></i>
+              <span>Reports</span>
+            </router-link>
+          </div>
+        </div>
+
+        <div class="mobile-user-section">
+          <div class="mobile-user-profile">
+            <div class="mobile-user-avatar">
+              <i class="bi bi-person-circle"></i>
+            </div>
+            <div class="mobile-user-info">
+              <span class="mobile-user-name">{{ currentUser?.username || 'User' }}</span>
+              <span class="mobile-user-role">User</span>
+            </div>
+          </div>
+          <button @click="handleLogout" class="mobile-logout-btn">
+            <i class="bi bi-box-arrow-right"></i>
+            <span>Logout</span>
+          </button>
         </div>
       </div>
     </nav>
@@ -414,6 +468,31 @@
       @close="closePaymentModal"
       @payment-success="handlePaymentSuccess"
     />
+
+    <!-- Custom Confirmation Modal -->
+    <div v-if="showConfirmModal" class="alert-modal-overlay" @click="cancelConfirmation">
+      <div class="alert-modal" @click.stop>
+        <div class="alert-header warning">
+          <div class="alert-icon">
+            <i class="bi bi-question-circle"></i>
+          </div>
+          <h3>{{ confirmTitle }}</h3>
+        </div>
+        <div class="alert-content">
+          <p>{{ confirmMessage }}</p>
+        </div>
+        <div class="alert-actions">
+          <button @click="cancelConfirmation" class="confirm-btn cancel">
+            <i class="bi bi-x"></i>
+            Cancel
+          </button>
+          <button @click="confirmAction" class="confirm-btn confirm">
+            <i class="bi bi-check"></i>
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -454,9 +533,18 @@ export default {
     // Logout modal state
     const showLogoutModal = ref(false);
 
+    // Mobile menu state
+    const isMobileMenuOpen = ref(false);
+
     // Payment modal state
     const showPaymentModal = ref(false);
     const currentReservation = ref(null);
+
+    // Custom confirmation modal states
+    const showConfirmModal = ref(false)
+    const confirmTitle = ref('')
+    const confirmMessage = ref('')
+    const confirmCallback = ref(null)
 
     // Computed properties
     const availableLots = computed(() => {
@@ -673,22 +761,24 @@ export default {
         return;
       }
       
-      if (!confirm(`Are you sure you want to release parking spot #${reservation.spot_id}?`)) {
-        console.log('User cancelled confirmation');
-        return;
-      }
-
-      console.log('Calculating parking cost...');
-      // Calculate parking cost
-      const parkingCost = calculateParkingCost(reservation);
-      console.log('Calculated cost:', parkingCost);
-      
-      // Show payment modal
-      console.log('Setting current reservation and showing modal...');
-      currentReservation.value = { ...reservation, parking_cost: parkingCost };
-      showPaymentModal.value = true;
-      console.log('Modal should be visible now. showPaymentModal.value:', showPaymentModal.value);
-      console.log('currentReservation.value:', currentReservation.value);
+      // Show custom confirmation modal
+      showConfirmation(
+        'Release Parking Spot',
+        `Are you sure you want to release parking spot #${reservation.spot_id}?`,
+        () => {
+          console.log('Calculating parking cost...');
+          // Calculate parking cost
+          const parkingCost = calculateParkingCost(reservation);
+          console.log('Calculated cost:', parkingCost);
+          
+          // Show payment modal
+          console.log('Setting current reservation and showing modal...');
+          currentReservation.value = { ...reservation, parking_cost: parkingCost };
+          showPaymentModal.value = true;
+          console.log('Modal should be visible now. showPaymentModal.value:', showPaymentModal.value);
+          console.log('currentReservation.value:', currentReservation.value);
+        }
+      );
     };
 
     const calculateEstimatedCost = (reservation) => {
@@ -699,8 +789,9 @@ export default {
       const diffMs = now - startTime;
       const diffHours = Math.ceil(diffMs / (1000 * 60 * 60)); // Round up to next hour
       
-      // Base rate: ₹10 per hour, minimum ₹20
-      const costPerHour = 10;
+      // Use the actual lot price from the reservation data, fallback to ₹10 per hour
+      const costPerHour = reservation.lot_price || 10;
+      // Keep minimum cost as ₹20 regardless of hourly rate
       const totalCost = Math.max(diffHours * costPerHour, 20);
       
       return totalCost;
@@ -757,6 +848,29 @@ export default {
         releasing.value = false;
       }
     };
+
+    // Custom confirmation functions
+    const showConfirmation = (title, message, callback) => {
+      confirmTitle.value = title
+      confirmMessage.value = message
+      confirmCallback.value = callback
+      showConfirmModal.value = true
+    }
+
+    const confirmAction = () => {
+      showConfirmModal.value = false
+      if (confirmCallback.value) {
+        confirmCallback.value()
+      }
+      confirmCallback.value = null
+    }
+
+    const cancelConfirmation = () => {
+      showConfirmModal.value = false
+      confirmTitle.value = ''
+      confirmMessage.value = ''
+      confirmCallback.value = null
+    }
 
     const closePaymentModal = () => {
       showPaymentModal.value = false;
@@ -841,7 +955,11 @@ export default {
     };
 
     const toggleMobileMenu = () => {
-      // Mobile menu toggle functionality
+      isMobileMenuOpen.value = !isMobileMenuOpen.value;
+    };
+
+    const closeMobileMenu = () => {
+      isMobileMenuOpen.value = false;
     };
 
     // Vehicle Modal Functions
@@ -957,7 +1075,10 @@ export default {
       confirmLogout,
       cancelLogout,
       toggleMobileMenu,
+      closeMobileMenu,
       checkAuth,
+      // Mobile menu
+      isMobileMenuOpen,
       // Vehicle modal
       showVehicleModal,
       submittingVehicle,
@@ -972,7 +1093,13 @@ export default {
       handlePaymentSuccess,
       closePaymentModal,
       calculateEstimatedCost,
-      calculateParkingCost
+      calculateParkingCost,
+      // Custom confirmation modal
+      showConfirmModal,
+      confirmTitle,
+      confirmMessage,
+      confirmAction,
+      cancelConfirmation
     };
   }
 };
@@ -1160,6 +1287,149 @@ export default {
   justify-content: center;
   cursor: pointer;
   font-size: 1.2rem;
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Mobile Menu */
+.mobile-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 999;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.3s ease;
+}
+
+.mobile-menu.active {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mobile-nav-section {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mobile-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: #00a8e8;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mobile-nav-header i {
+  font-size: 1.1rem;
+}
+
+.mobile-nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  border-radius: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mobile-nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px);
+}
+
+.mobile-nav-link.router-link-active {
+  color: white;
+  background: rgba(0, 168, 232, 0.2);
+  border-left: 3px solid #00a8e8;
+}
+
+.mobile-nav-link i {
+  font-size: 1.2rem;
+  width: 20px;
+  text-align: center;
+}
+
+.mobile-user-section {
+  padding: 1.5rem;
+}
+
+.mobile-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+
+.mobile-user-avatar i {
+  font-size: 2.5rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.mobile-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-user-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: white;
+}
+
+.mobile-user-role {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mobile-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+}
+
+.mobile-logout-btn:hover {
+  background: linear-gradient(135deg, #ee5a6f, #e53e3e);
+  transform: translateY(-2px);
 }
 
 /* Animated Background */
@@ -1993,29 +2263,28 @@ export default {
     height: 70px;
   }
   
-  .navbar-menu {
-    gap: 1rem;
-  }
-  
-  .nav-links {
-    gap: 0.25rem;
-  }
-  
-  .nav-link {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
-  }
-  
-  .nav-link span {
+  /* Hide brand text on mobile, show only logo */
+  .brand-text {
     display: none;
   }
   
-  .user-info {
+  /* Hide desktop menu */
+  .desktop-menu {
     display: none;
   }
   
-  .logout-btn span {
+  /* Show mobile menu toggle */
+  .mobile-menu-toggle {
+    display: flex;
+  }
+  
+  /* Mobile menu becomes visible */
+  .mobile-menu {
     display: none;
+  }
+  
+  .mobile-menu.active {
+    display: block;
   }
   
   .main-content {
@@ -2106,5 +2375,135 @@ export default {
   .active-parking-card {
     padding: 1.5rem;
   }
+}
+
+/* Custom Confirmation Modal */
+.alert-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20000;
+  animation: alertFadeIn 0.3s ease-out;
+}
+
+@keyframes alertFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.alert-modal {
+  background: rgba(26, 26, 26, 0.98);
+  backdrop-filter: blur(30px);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  max-width: 400px;
+  width: 90%;
+  margin: 1rem;
+  overflow: hidden;
+  animation: alertSlideIn 0.4s ease-out;
+}
+
+@keyframes alertSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.alert-header {
+  padding: 2rem 1.5rem 1rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.alert-header.warning {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 193, 7, 0.05));
+  border-bottom-color: rgba(255, 193, 7, 0.2);
+}
+
+.alert-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: #ffc107;
+}
+
+.alert-header h3 {
+  color: #ffffff;
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.alert-content {
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.alert-content p {
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.alert-actions {
+  padding: 1rem 1.5rem 1.5rem;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.confirm-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 100px;
+  justify-content: center;
+  margin: 0 0.5rem;
+}
+
+.confirm-btn.cancel {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+}
+
+.confirm-btn.cancel:hover {
+  background: linear-gradient(135deg, #5a6268, #545b62);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(108, 117, 125, 0.4);
+}
+
+.confirm-btn.confirm {
+  background: linear-gradient(135deg, #ffc107, #e0a800);
+  color: #000000;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+.confirm-btn.confirm:hover {
+  background: linear-gradient(135deg, #e0a800, #d39e00);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 193, 7, 0.4);
 }
 </style>

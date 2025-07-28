@@ -14,6 +14,8 @@ from controllers import (
     RegisterResource,
     BookingResource,
     ReportsResource,
+    UserReportsResource,
+    UserBookingHistoryResource,
     ExportResource
 )
 from flask_cors import CORS
@@ -50,6 +52,8 @@ api.add_resource(BookingResource, '/booking/<action>')
 
 #endpoints for reports and analytics
 api.add_resource(ReportsResource, '/reports')
+api.add_resource(UserReportsResource, '/user-reports')
+api.add_resource(UserBookingHistoryResource, '/user-booking-history')
 api.add_resource(ExportResource, '/export/<export_type>')
 
 # Configure CORS properly

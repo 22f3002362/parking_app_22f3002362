@@ -13,7 +13,7 @@
           </div>
         </div>
         
-        <div class="navbar-menu">
+        <div class="navbar-menu desktop-menu">
           <div class="nav-links">
             <router-link to="/user-dashboard" class="nav-link">
               <i class="bi bi-house"></i>
@@ -26,6 +26,10 @@
             <router-link to="/my-bookings" class="nav-link">
               <i class="bi bi-calendar-check"></i>
               <span>My Bookings</span>
+            </router-link>
+            <router-link to="/user-reports" class="nav-link">
+              <i class="bi bi-graph-up"></i>
+              <span>Reports</span>
             </router-link>
           </div>
           
@@ -44,6 +48,55 @@
               <span>Logout</span>
             </button>
           </div>
+        </div>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" @click="toggleMobileMenu">
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
+
+      <!-- Mobile Menu Dropdown -->
+      <div class="mobile-menu" :class="{ 'active': isMobileMenuOpen }">
+        <div class="mobile-nav-section">
+          <div class="mobile-nav-header">
+            <i class="bi bi-list"></i>
+            <span>Navigation</span>
+          </div>
+          <div class="mobile-nav-links">
+            <router-link to="/user-dashboard" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-house"></i>
+              <span>Dashboard</span>
+            </router-link>
+            <router-link to="/find-parking" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-search"></i>
+              <span>Find Parking</span>
+            </router-link>
+            <router-link to="/my-bookings" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-calendar-check"></i>
+              <span>My Bookings</span>
+            </router-link>
+            <router-link to="/user-reports" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-graph-up"></i>
+              <span>Reports</span>
+            </router-link>
+          </div>
+        </div>
+
+        <div class="mobile-user-section">
+          <div class="mobile-user-profile">
+            <div class="mobile-user-avatar">
+              <i class="bi bi-person-circle"></i>
+            </div>
+            <div class="mobile-user-info">
+              <span class="mobile-user-name">{{ currentUser?.username || 'User' }}</span>
+              <span class="mobile-user-role">User</span>
+            </div>
+          </div>
+          <button @click="handleLogout" class="mobile-logout-btn">
+            <i class="bi bi-box-arrow-right"></i>
+            <span>Logout</span>
+          </button>
         </div>
       </div>
     </nav>
@@ -259,6 +312,7 @@ export default {
     const loading = ref(false);
     const booking = ref(false);
     const message = ref({ text: '', type: '' });
+    const isMobileMenuOpen = ref(false);
     
     // Search and filter state
     const searchFilters = ref({
@@ -462,7 +516,11 @@ export default {
     };
 
     const toggleMobileMenu = () => {
-      // Mobile menu toggle functionality
+      isMobileMenuOpen.value = !isMobileMenuOpen.value;
+    };
+
+    const closeMobileMenu = () => {
+      isMobileMenuOpen.value = false;
     };
 
     // Initialize component
@@ -488,6 +546,7 @@ export default {
       isFiltering,
       filteredLots,
       sortedLots,
+      isMobileMenuOpen,
       handleSearch,
       handleSort,
       clearFilters,
@@ -496,7 +555,8 @@ export default {
       getAvailabilityText,
       bookParkingSpot,
       handleLogout,
-      toggleMobileMenu
+      toggleMobileMenu,
+      closeMobileMenu
     };
   }
 };
@@ -670,6 +730,163 @@ export default {
 .logout-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
+}
+
+.mobile-menu-toggle {
+  display: none;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Mobile Menu */
+.mobile-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 999;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.3s ease;
+}
+
+.mobile-menu.active {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mobile-nav-section {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mobile-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: #00a8e8;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mobile-nav-header i {
+  font-size: 1.1rem;
+}
+
+.mobile-nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  border-radius: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mobile-nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px);
+}
+
+.mobile-nav-link.router-link-active {
+  color: white;
+  background: rgba(0, 168, 232, 0.2);
+  border-left: 3px solid #00a8e8;
+}
+
+.mobile-nav-link i {
+  font-size: 1.2rem;
+  width: 20px;
+  text-align: center;
+}
+
+.mobile-user-section {
+  padding: 1.5rem;
+}
+
+.mobile-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+
+.mobile-user-avatar i {
+  font-size: 2.5rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.mobile-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-user-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: white;
+}
+
+.mobile-user-role {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mobile-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+}
+
+.mobile-logout-btn:hover {
+  background: linear-gradient(135deg, #ee5a6f, #e53e3e);
+  transform: translateY(-2px);
 }
 
 /* Animated Background */
@@ -1325,6 +1542,30 @@ export default {
   .navbar-content {
     padding: 0 1rem;
     height: 70px;
+  }
+  
+  /* Hide brand text on mobile, show only logo */
+  .brand-text {
+    display: none;
+  }
+  
+  /* Hide desktop menu */
+  .desktop-menu {
+    display: none;
+  }
+  
+  /* Show mobile menu toggle */
+  .mobile-menu-toggle {
+    display: flex;
+  }
+  
+  /* Mobile menu becomes visible */
+  .mobile-menu {
+    display: none;
+  }
+  
+  .mobile-menu.active {
+    display: block;
   }
   
   .navbar-menu {

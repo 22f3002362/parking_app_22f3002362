@@ -169,6 +169,30 @@
         </div>
       </div>
     </div>
+
+    <!-- Custom Alert Modal -->
+    <div v-if="showCustomAlert" class="alert-modal-overlay" @click="closeAlert">
+      <div class="alert-modal" @click.stop>
+        <div class="alert-header" :class="alertType">
+          <div class="alert-icon">
+            <i v-if="alertType === 'error'" class="bi bi-exclamation-triangle-fill"></i>
+            <i v-else-if="alertType === 'warning'" class="bi bi-exclamation-circle-fill"></i>
+            <i v-else-if="alertType === 'success'" class="bi bi-check-circle-fill"></i>
+            <i v-else class="bi bi-info-circle-fill"></i>
+          </div>
+          <h3>{{ alertTitle }}</h3>
+        </div>
+        <div class="alert-content">
+          <p>{{ alertMessage }}</p>
+        </div>
+        <div class="alert-actions">
+          <button @click="closeAlert" class="alert-btn" :class="alertType">
+            <i class="bi bi-check-lg"></i>
+            Okay
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -201,6 +225,12 @@ export default {
     const paymentSuccess = ref(false)
     const transactionId = ref('')
 
+    // Custom alert modal states
+    const showCustomAlert = ref(false)
+    const alertTitle = ref('')
+    const alertMessage = ref('')
+    const alertType = ref('error') // 'error', 'success', 'warning'
+
     const cardDetails = ref({
       number: '',
       expiry: '',
@@ -208,11 +238,9 @@ export default {
       name: ''
     })
 
-    // Calculate total amount with some random fees
+    // Calculate total amount without any extra fees
     const totalAmount = computed(() => {
-      const baseAmount = props.amount || Math.floor(Math.random() * 100) + 20
-      const platformFee = Math.ceil(baseAmount * 0.05) // 5% platform fee
-      return baseAmount + platformFee
+      return props.amount || 0
     })
 
     // Calculate parking duration
@@ -341,6 +369,22 @@ export default {
       return result
     }
 
+    // Custom alert function
+    const showAlert = (title, message, type = 'error') => {
+      alertTitle.value = title
+      alertMessage.value = message
+      alertType.value = type
+      showCustomAlert.value = true
+    }
+
+    // Close custom alert
+    const closeAlert = () => {
+      showCustomAlert.value = false
+      alertTitle.value = ''
+      alertMessage.value = ''
+      alertType.value = 'error'
+    }
+
     // Process payment
     const processPayment = async () => {
       if (processing.value) return
@@ -349,7 +393,7 @@ export default {
       if (paymentMethod.value === 'card') {
         if (!cardDetails.value.number || !cardDetails.value.expiry || 
             !cardDetails.value.cvv || !cardDetails.value.name) {
-          alert('Please fill in all card details')
+          showAlert('Incomplete Details', 'Please fill in all card details to proceed with payment.', 'warning')
           return
         }
       }
@@ -376,7 +420,7 @@ export default {
         }, 1500)
         
       } catch (error) {
-        alert('Payment failed. Please try again.')
+        showAlert('Payment Failed', 'Payment processing failed. Please try again or use a different payment method.', 'error')
       } finally {
         processing.value = false
       }
@@ -436,11 +480,17 @@ export default {
       cardDetails,
       totalAmount,
       calculatedDuration,
+      // Custom alert states
+      showCustomAlert,
+      alertTitle,
+      alertMessage,
+      alertType,
       formatCardNumber,
       formatExpiry,
       processPayment,
       closeModal,
-      redirectToDashboard
+      redirectToDashboard,
+      closeAlert
     }
   }
 }
@@ -514,8 +564,8 @@ export default {
 .close-btn {
   background: rgba(255, 255, 255, 0.1);
   border: none;
-  width: 35px;
-  height: 35px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   color: #ffffff;
   font-size: 1.2rem;
@@ -524,6 +574,8 @@ export default {
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
+  min-width: 40px;
+  min-height: 40px;
 }
 
 .close-btn:hover {
@@ -880,20 +932,224 @@ export default {
   to { transform: rotate(360deg); }
 }
 
+/* Custom Alert Modal */
+.alert-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20000;
+  animation: alertFadeIn 0.3s ease-out;
+}
+
+@keyframes alertFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.alert-modal {
+  background: rgba(26, 26, 26, 0.98);
+  backdrop-filter: blur(30px);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  max-width: 400px;
+  width: 90%;
+  margin: 1rem;
+  overflow: hidden;
+  animation: alertSlideIn 0.4s ease-out;
+}
+
+@keyframes alertSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.alert-header {
+  padding: 2rem 1.5rem 1rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.alert-header.error {
+  background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(220, 53, 69, 0.05));
+  border-bottom-color: rgba(220, 53, 69, 0.2);
+}
+
+.alert-header.warning {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 193, 7, 0.05));
+  border-bottom-color: rgba(255, 193, 7, 0.2);
+}
+
+.alert-header.success {
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(40, 167, 69, 0.05));
+  border-bottom-color: rgba(40, 167, 69, 0.2);
+}
+
+.alert-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.alert-header.error .alert-icon {
+  color: #dc3545;
+}
+
+.alert-header.warning .alert-icon {
+  color: #ffc107;
+}
+
+.alert-header.success .alert-icon {
+  color: #28a745;
+}
+
+.alert-header h3 {
+  color: #ffffff;
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.alert-content {
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.alert-content p {
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.alert-actions {
+  padding: 1rem 1.5rem 1.5rem;
+  text-align: center;
+}
+
+.alert-btn {
+  padding: 0.75rem 2rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.alert-btn.error {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.alert-btn.error:hover {
+  background: linear-gradient(135deg, #c82333, #bd2130);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(220, 53, 69, 0.4);
+}
+
+.alert-btn.warning {
+  background: linear-gradient(135deg, #ffc107, #e0a800);
+  color: #000000;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+.alert-btn.warning:hover {
+  background: linear-gradient(135deg, #e0a800, #d39e00);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 193, 7, 0.4);
+}
+
+.alert-btn.success {
+  background: linear-gradient(135deg, #28a745, #20692e);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.alert-btn.success:hover {
+  background: linear-gradient(135deg, #20692e, #1e5f2a);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
-  .payment-modal {
-    margin: 1rem;
-    max-width: none;
-    border-radius: 20px;
+  .payment-modal-overlay {
+    padding: 0.5rem;
+    align-items: flex-start;
+    padding-top: 2rem;
   }
   
-  .payment-header, .payment-content {
-    padding: 1.5rem;
+  .payment-modal {
+    margin: 0;
+    max-width: none;
+    width: 100%;
+    border-radius: 20px;
+    max-height: calc(100vh - 4rem);
+  }
+  
+  .payment-header {
+    padding: 1.5rem 1.5rem 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
   }
   
   .payment-header h2 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
+    flex: 1;
+    min-width: 250px;
+  }
+  
+  .payment-content {
+    padding: 1.5rem;
+  }
+  
+  .booking-summary {
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .summary-item {
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .summary-item .label {
+    min-width: 120px;
+  }
+  
+  .payment-section {
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .method-tabs {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+  
+  .method-tab {
+    padding: 1rem;
+    font-size: 1rem;
   }
   
   .form-row {
@@ -901,36 +1157,288 @@ export default {
     gap: 0;
   }
   
-  .payment-actions {
-    flex-direction: column;
+  .form-group {
+    margin-bottom: 1.25rem;
   }
   
-  .method-tabs {
+  .form-group input {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+  
+  .qr-code {
+    padding: 0.75rem;
+  }
+  
+  .qr-code canvas {
+    width: 180px !important;
+    height: 180px !important;
+  }
+  
+  .upi-icons {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  
+  .upi-app {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .payment-actions {
     flex-direction: column;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  
+  .cancel-btn, .pay-btn {
+    padding: 1.25rem;
+    font-size: 1.1rem;
+  }
+  
+  .transaction-details {
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .detail-item {
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
   
-  .method-tab {
-    padding: 1rem;
+  .success-content {
+    padding: 1.5rem;
+  }
+  
+  .success-icon {
+    font-size: 3.5rem;
+  }
+  
+  .success-btn {
+    padding: 1.25rem 2rem;
+    font-size: 1.1rem;
   }
 }
 
 @media (max-width: 480px) {
-  .payment-modal {
-    margin: 0.5rem;
-    max-height: 95vh;
+  .payment-modal-overlay {
+    padding: 0.25rem;
+    padding-top: 1rem;
   }
   
-  .payment-header, .payment-content {
+  .payment-modal {
+    margin: 0;
+    max-height: calc(100vh - 2rem);
+    border-radius: 16px;
+  }
+  
+  .payment-header {
     padding: 1rem;
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  
+  .payment-header h2 {
+    font-size: 1.2rem;
+    min-width: auto;
+    order: 1;
+  }
+  
+  .close-btn {
+    align-self: flex-end;
+    order: 0;
+    margin-bottom: -0.5rem;
+  }
+  
+  .payment-content {
+    padding: 1rem;
+  }
+  
+  .booking-summary {
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+    border-radius: 12px;
+  }
+  
+  .booking-summary h3 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .summary-item {
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  .summary-item.total {
+    font-size: 1rem;
+    padding-top: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  
+  .summary-item .amount {
+    font-size: 1.1rem;
+  }
+  
+  .payment-methods h3 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .payment-section {
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+    border-radius: 12px;
+  }
+  
+  .method-tabs {
+    padding: 0.5rem;
+    border-radius: 10px;
+  }
+  
+  .method-tab {
+    padding: 0.875rem;
+    font-size: 0.9rem;
+    border-radius: 6px;
+  }
+  
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  
+  .form-group label {
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+  }
+  
+  .form-group input {
+    padding: 0.875rem;
+    font-size: 0.95rem;
+    border-radius: 10px;
+  }
+  
+  .qr-code {
+    padding: 0.5rem;
+    border-radius: 10px;
+  }
+  
+  .qr-code canvas {
+    width: 150px !important;
+    height: 150px !important;
+  }
+  
+  .qr-instructions {
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .upi-label {
+    font-size: 0.8rem;
+  }
+  
+  .upi-icons {
+    gap: 0.5rem;
+  }
+  
+  .upi-app {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    border-radius: 12px;
+  }
+  
+  .payment-actions {
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+  
+  .cancel-btn, .pay-btn {
+    padding: 1rem;
+    font-size: 1rem;
+    border-radius: 10px;
+  }
+  
+  .payment-success-overlay {
+    border-radius: 16px;
+  }
+  
+  .success-content {
+    padding: 1rem;
+  }
+  
+  .success-icon {
+    font-size: 3rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .success-content h2 {
+    font-size: 1.3rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .success-content p {
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .transaction-details {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 12px;
+  }
+  
+  .detail-item {
+    margin-bottom: 0.6rem;
+    font-size: 0.9rem;
+  }
+  
+  .transaction-id {
+    font-size: 0.8rem;
+  }
+  
+  .success-btn {
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    border-radius: 10px;
+  }
+}
+
+/* Landscape mobile optimization */
+@media (max-width: 768px) and (orientation: landscape) {
+  .payment-modal-overlay {
+    align-items: center;
+    padding: 1rem;
+  }
+  
+  .payment-modal {
+    max-height: 85vh;
+  }
+  
+  .payment-header {
+    padding: 1rem 1.5rem 0.75rem;
   }
   
   .payment-header h2 {
     font-size: 1.3rem;
   }
   
+  .payment-content {
+    padding: 1rem 1.5rem 1.5rem;
+  }
+  
   .booking-summary, .payment-section {
+    margin-bottom: 1rem;
     padding: 1rem;
+  }
+  
+  .qr-code canvas {
+    width: 120px !important;
+    height: 120px !important;
+  }
+  
+  .success-icon {
+    font-size: 2.5rem;
   }
 }
 </style>

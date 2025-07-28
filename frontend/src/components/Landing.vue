@@ -76,9 +76,14 @@
 
       <!-- Footer -->
       <footer class="footer">
-        <div class="footer-content">
-          <p>&copy; 2025 PARK-IT. Premium Parking Solutions.</p>
-          <p class="footer-tagline">Crafted with precision for the modern world</p>
+        <div class="footer-container">
+          <!-- Footer Bottom -->
+          <div class="footer-bottom">
+            <div class="footer-bottom-content">
+              <p>&copy; 2025 PARKEASE. All rights reserved.</p>
+              <p class="crafted-text">Crafted with precision for the modern world</p>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
@@ -585,25 +590,72 @@ onMounted(() => {
 
 /* Footer */
 .footer {
+  background: linear-gradient(135deg, rgba(26, 45, 67, 0.98) 0%, rgba(0, 0, 0, 0.95) 100%);
+  border-top: 2px solid rgba(255, 215, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #00a8e8, transparent);
+}
+
+.footer-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.footer-bottom {
   padding: 2rem;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.footer-bottom-content {
   text-align: center;
-  background: rgba(0, 0, 0, 0.8);
-  border-top: 1px solid rgba(255, 215, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.footer-content p {
-  margin: 0.5rem 0;
-  color: #e5e5e5;
-}
-
-.footer-tagline {
+.footer-bottom-content p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.9rem;
+}
+
+.crafted-text {
   color: #ffd700;
   font-style: italic;
+  font-size: 0.85rem !important;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .main-title {
+    font-size: 2.8rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .main-title::first-line {
+    font-size: 3rem;
+  }
+  
+  .main-description {
+    font-size: 1rem;
+    margin-bottom: 2rem;
+  }
+  
+  .hero-content {
+    padding-top: 3rem;
+  }
+  
   .hero-title {
     font-size: 2.5rem;
   }
@@ -622,31 +674,123 @@ onMounted(() => {
     font-size: 2rem;
   }
   
+  .features-title {
+    font-size: 2.2rem;
+  }
+  
+  .features-description {
+    font-size: 1rem;
+  }
+  
   .features-grid {
     grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .features-grid .feature-item {
+    padding: 1.5rem;
+  }
+  
+  .features-grid .feature-item h3 {
+    font-size: 1.3rem;
+  }
+  
+  .features-grid .feature-item p {
+    font-size: 0.9rem;
   }
   
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  
+  .stat-number {
+    font-size: 2rem;
+  }
+  
+  .stat-label {
+    font-size: 0.8rem;
   }
   
   .feature-card {
     padding: 2rem;
   }
   
+  .cta-buttons {
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: center;
+  }
+  
   .cta-button {
     padding: 0.8rem 2rem;
-    font-size: 1rem;
+    font-size: 0.9rem;
+    width: 100%;
+    max-width: 250px;
+  }
+  
+  .features {
+    gap: 1rem;
+  }
+  
+  .features .feature-item {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+  }
+  
+  /* Footer Responsive */
+  .footer-bottom {
+    padding: 1.5rem;
   }
 }
 
 @media (max-width: 480px) {
+  .main-title {
+    font-size: 2.2rem;
+    line-height: 1.2;
+  }
+  
+  .main-title::first-line {
+    font-size: 2.4rem;
+  }
+  
+  .main-description {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 2rem;
+  }
+  
   .hero-section {
     padding: 1rem;
+    min-height: 90vh;
+  }
+  
+  .hero-content {
+    padding-top: 2rem;
   }
   
   .features-section {
     padding: 4rem 1rem;
+  }
+  
+  .features-title {
+    font-size: 1.8rem;
+  }
+  
+  .features-description {
+    font-size: 0.9rem;
+  }
+  
+  .features-grid .feature-item {
+    padding: 1.2rem;
+  }
+  
+  .features-grid .feature-item h3 {
+    font-size: 1.2rem;
+  }
+  
+  .features-grid .feature-item p {
+    font-size: 0.85rem;
   }
   
   .stats-section {
@@ -655,6 +799,38 @@ onMounted(() => {
   
   .stats-grid {
     grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .stat-number {
+    font-size: 1.8rem;
+  }
+  
+  .stat-label {
+    font-size: 0.75rem;
+  }
+  
+  .cta-button {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.85rem;
+  }
+  
+  .features .feature-item {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.6rem;
+  }
+  
+  /* Footer Mobile */
+  .footer-bottom {
+    padding: 1rem;
+  }
+  
+  .footer-bottom-content p {
+    font-size: 0.85rem;
+  }
+  
+  .crafted-text {
+    font-size: 0.8rem !important;
   }
 }
 

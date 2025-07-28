@@ -8,12 +8,13 @@
             <img src="../assets/P.png" alt="ParkEase Logo" class="logo-img">
             <div class="brand-text">
               <h1>ParkEase</h1>
-              <p>Parking Lots</p>
+              <p>Smart Parking Solutions</p>
             </div>
           </div>
         </div>
         
-        <div class="navbar-menu">
+        <!-- Desktop Menu -->
+        <div class="navbar-menu desktop-menu">
           <div class="nav-links">
             <router-link to="/admin-dashboard" class="nav-link">
               <i class="bi bi-speedometer2"></i>
@@ -48,6 +49,55 @@
               <span>Logout</span>
             </button>
           </div>
+        </div>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" @click="toggleMobileMenu">
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
+
+      <!-- Mobile Menu Dropdown -->
+      <div class="mobile-menu" :class="{ 'active': isMobileMenuOpen }">
+        <div class="mobile-nav-section">
+          <div class="mobile-nav-header">
+            <i class="bi bi-list"></i>
+            <span>Navigation</span>
+          </div>
+          <div class="mobile-nav-links">
+            <router-link to="/admin-dashboard" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-speedometer2"></i>
+              <span>Dashboard</span>
+            </router-link>
+            <router-link to="/parking-lots" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-geo-alt-fill"></i>
+              <span>Parking Lots</span>
+            </router-link>
+            <router-link to="/manage-users" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-people-fill"></i>
+              <span>Users</span>
+            </router-link>
+            <a href="/admin-reports" class="mobile-nav-link" @click="closeMobileMenu">
+              <i class="bi bi-graph-up"></i>
+              <span>Reports</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="mobile-user-section">
+          <div class="mobile-user-profile">
+            <div class="mobile-user-avatar">
+              <i class="bi bi-person-circle"></i>
+            </div>
+            <div class="mobile-user-info">
+              <span class="mobile-user-name">{{ currentUser?.username || 'Admin' }}</span>
+              <span class="mobile-user-role">Administrator</span>
+            </div>
+          </div>
+          <button @click="handleLogout" class="mobile-logout-btn">
+            <i class="bi bi-box-arrow-right"></i>
+            <span>Logout</span>
+          </button>
         </div>
       </div>
     </nav>
@@ -569,6 +619,9 @@ const selectedLot = ref(null)
 const currentUser = ref({ username: 'Admin' })
 const error = ref(null)
 
+// Mobile menu state
+const isMobileMenuOpen = ref(false)
+
 // Add/Edit Lot Modal
 const showAddLotModal = ref(false)
 const isEditMode = ref(false)
@@ -923,8 +976,11 @@ const handleLogout = () => {
 }
 
 const toggleMobileMenu = () => {
-  // Handle mobile menu toggle
-  console.log('Toggle mobile menu')
+  isMobileMenuOpen.value = !isMobileMenuOpen.value
+}
+
+const closeMobileMenu = () => {
+  isMobileMenuOpen.value = false
 }
 
 // Helper functions for status display
@@ -1141,6 +1197,164 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
+/* Mobile Menu Toggle */
+.mobile-menu-toggle {
+  display: none;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Mobile Menu */
+.mobile-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 999;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.3s ease;
+}
+
+.mobile-menu.active {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mobile-nav-section {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mobile-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: #00a8e8;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mobile-nav-header i {
+  font-size: 1.1rem;
+}
+
+.mobile-nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  border-radius: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mobile-nav-link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px);
+}
+
+.mobile-nav-link.router-link-active {
+  color: white;
+  background: rgba(0, 168, 232, 0.2);
+  border-left: 3px solid #00a8e8;
+}
+
+.mobile-nav-link i {
+  font-size: 1.2rem;
+  width: 20px;
+  text-align: center;
+}
+
+.mobile-user-section {
+  padding: 1.5rem;
+}
+
+.mobile-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+
+.mobile-user-avatar i {
+  font-size: 2.5rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.mobile-user-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-user-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: white;
+}
+
+.mobile-user-role {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mobile-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+}
+
+.mobile-logout-btn:hover {
+  background: linear-gradient(135deg, #ee5a6f, #e53e3e);
+  transform: translateY(-2px);
+}
+
 /* Animated Background */
 .bg-animation {
   position: fixed;
@@ -1339,7 +1553,7 @@ onMounted(() => {
 /* Lots Grid */
 .lots-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 2rem;
 }
 
@@ -1587,6 +1801,8 @@ onMounted(() => {
   justify-content: center;
   z-index: 1000;
   animation: modalFadeIn 0.3s ease-out;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
 @keyframes modalFadeIn {
@@ -2071,6 +2287,8 @@ onMounted(() => {
   justify-content: center;
   z-index: 1100;
   animation: popupFadeIn 0.2s ease-out;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
 @keyframes popupFadeIn {
@@ -2304,97 +2522,366 @@ onMounted(() => {
   .navbar-content {
     padding: 0 1rem;
     height: 70px;
+    position: relative;
   }
   
-  .navbar-menu {
-    gap: 1rem;
-  }
-  
-  .nav-links {
-    gap: 0.25rem;
-  }
-  
-  .nav-link {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
-  }
-  
-  .nav-link span {
+  /* Hide desktop menu */
+  .desktop-menu {
     display: none;
   }
   
-  .admin-info {
+  /* Show mobile menu toggle */
+  .mobile-menu-toggle {
+    display: flex;
+  }
+  
+  /* Mobile menu becomes visible */
+  .mobile-menu {
     display: none;
   }
   
-  .logout-btn span {
-    display: none;
+  .mobile-menu.active {
+    display: block;
+  }
+  
+  .main-content {
+    padding: 1rem;
+    padding-top: 80px;
   }
   
   .main-title {
-    font-size: 2.5rem;
+    font-size: 2.2rem;
+  }
+  
+  .hero-section {
+    padding: 2rem 0;
+  }
+  
+  .section-container {
+    padding: 1.5rem;
+    margin: 1rem 0;
   }
   
   .lots-grid {
     grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .lot-card {
+    padding: 1.5rem;
   }
   
   .section-header {
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
     text-align: center;
-  }
-  
-  .details-header {
-    grid-template-columns: 1fr;
-  }
-  
-  .quick-stats {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  
-  .all-slots-grid {
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   }
   
   .section-actions {
     flex-direction: column;
     width: 100%;
+    gap: 0.75rem;
+  }
+  
+  .cta-button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .details-header {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .quick-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  .all-slots-grid {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 0.75rem;
+  }
+  
+  .slot-item {
+    padding: 1rem;
+    min-height: 70px;
+  }
+  
+  .slot-number {
+    font-size: 0.9rem;
+  }
+  
+  /* Modal Responsiveness */
+  .modal-container {
+    width: 95%;
+    max-width: 500px;
+    margin: 1rem;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .modal-header {
+    padding: 1.5rem;
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  
+  .modal-title-section h3 {
+    font-size: 1.4rem;
+  }
+  
+  .modal-form {
+    padding: 1.5rem;
   }
   
   .form-row {
     grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .form-group {
+    margin-bottom: 1.5rem;
   }
   
   .form-actions {
     flex-direction: column-reverse;
+    gap: 1rem;
   }
   
+  .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 1rem;
+  }
+  
+  /* Details Modal */
+  .details-container {
+    padding: 1rem;
+  }
+  
+  .details-sections {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .section-card {
+    padding: 1.5rem;
+  }
+  
+  /* Slot Details Popup */
   .slot-popup {
     width: 95%;
-    max-width: 280px;
+    max-width: 320px;
+    margin: 1rem;
   }
   
   .popup-header h4 {
-    font-size: 0.9rem;
+    font-size: 1rem;
+  }
+  
+  .popup-content {
+    padding: 1rem;
   }
   
   .info-row {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
+    padding: 0.75rem;
+  }
+  
+  .user-info {
+    gap: 0.75rem;
+  }
+  
+  .popup-available,
+  .popup-occupied {
+    padding: 1rem;
+  }
+  
+  .popup-rate {
+    font-size: 1.2rem;
   }
 }
 
 @media (max-width: 480px) {
   .brand-text h1 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
   
   .brand-text p {
     display: none;
   }
   
-  .navbar-actions {
+  .main-content {
+    padding: 0.75rem;
+    padding-top: 80px;
+  }
+  
+  .main-title {
+    font-size: 1.8rem;
+  }
+  
+  .hero-section {
+    padding: 1.5rem 0;
+  }
+  
+  .section-container {
+    padding: 1rem;
+    margin: 0.75rem 0;
+  }
+  
+  .section-title {
+    font-size: 1.3rem;
+  }
+  
+  .section-subtitle {
+    font-size: 0.9rem;
+  }
+  
+  .lot-card {
+    padding: 1.25rem;
+  }
+  
+  .lot-name {
+    font-size: 1.1rem;
+  }
+  
+  .lot-stats {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .stat-number {
+    font-size: 1.2rem;
+  }
+  
+  .stat-label {
+    font-size: 0.75rem;
+  }
+  
+  .slots-grid {
+    grid-template-columns: repeat(auto-fill, minmax(25px, 1fr));
+    gap: 3px;
+  }
+  
+  .slot-mini {
+    width: 25px;
+    height: 25px;
+    font-size: 0.7rem;
+  }
+  
+  .quick-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  
+  .all-slots-grid {
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
     gap: 0.5rem;
+  }
+  
+  .slot-item {
+    padding: 0.75rem;
+    min-height: 60px;
+  }
+  
+  .slot-number {
+    font-size: 0.8rem;
+  }
+  
+  /* Modal Mobile Optimization */
+  .modal-container {
+    width: 98%;
+    margin: 0.5rem;
+    max-height: 95vh;
+  }
+  
+  .modal-header {
+    padding: 1rem;
+  }
+  
+  .modal-title-section h3 {
+    font-size: 1.2rem;
+  }
+  
+  .modal-title-section p {
+    font-size: 0.85rem;
+  }
+  
+  .modal-form {
+    padding: 1rem;
+  }
+  
+  .form-label {
+    font-size: 0.9rem;
+  }
+  
+  .form-input,
+  .form-textarea {
+    padding: 0.75rem;
+    font-size: 0.9rem;
+  }
+  
+  .btn {
+    padding: 0.875rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Slot Popup Mobile */
+  .slot-popup {
+    width: 98%;
+    max-width: 300px;
+    margin: 0.5rem;
+  }
+  
+  .popup-header {
+    padding: 1rem;
+  }
+  
+  .popup-header h4 {
+    font-size: 0.95rem;
+  }
+  
+  .popup-content {
+    padding: 0.75rem;
+  }
+  
+  .info-row {
+    font-size: 0.8rem;
+    padding: 0.5rem;
+  }
+  
+  .popup-status {
+    padding: 0.75rem;
+    font-size: 0.85rem;
+  }
+  
+  .popup-rate {
+    font-size: 1.1rem;
+  }
+  
+  .booking-time {
+    font-size: 0.8rem;
+  }
+  
+  /* Touch-friendly improvements */
+  .close-btn,
+  .popup-close {
+    padding: 0.75rem;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .action-button,
+  .cta-button {
+    min-height: 44px;
+    padding: 0.875rem 1.5rem;
+  }
+  
+  .slot-item {
+    min-height: 44px;
+    touch-action: manipulation;
   }
 }
 </style>
