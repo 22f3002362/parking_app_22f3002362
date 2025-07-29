@@ -4,12 +4,9 @@ flask-sqlalchemy
 flask-migrate
 flask-restful
 flask-jwt-extended
-flask-mail
 flask-caching
 redis
-celery[redis]
+celery[redis]==5.3.1
 requests
 python-dotenv
 email-validator
-kombu
-

@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Api, Resource
 from flask_jwt_extended import JWTManager
-from flask_mail import Mail, Message
+# Flask-Mail removed - using MailHog for development
 from models import *
 from controllers import (
     UserResource,
@@ -18,7 +18,9 @@ from controllers import (
     ReportsResource,
     UserReportsResource,
     UserBookingHistoryResource,
-    ExportResource
+    ExportResource,
+    TasksResource,
+    DebugResource
 )
 from flask_cors import CORS
 from datetime import timedelta, datetime
@@ -35,14 +37,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///parking_app.db'
 app.config['JWT_SECRET_KEY'] = 'your-secret-key-change-in-production'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=12)
 
-# Mail configuration
-app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
-app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'False').lower() == 'true'
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
+# MailHog configuration for development
+app.config['MAILHOG_SERVER'] = os.getenv('MAILHOG_SERVER', 'localhost')
+app.config['MAILHOG_PORT'] = int(os.getenv('MAILHOG_PORT', 8025))
+app.config['MAILHOG_WEB_PORT'] = int(os.getenv('MAILHOG_WEB_PORT', 8025))
 
 # Celery configuration
 app.config['CELERY_BROKER_URL'] = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
@@ -51,12 +49,11 @@ app.config['CELERY_RESULT_BACKEND'] = os.getenv('CELERY_RESULT_BACKEND', 'redis:
 db.init_app(app)
 jwt = JWTManager(app)
 api = Api(app)
-mail = Mail(app)
 CORS(app)
 
 # Initialize Celery
-# from celery_app import create_celery
-# celery = create_celery(app)
+from celery_app import init_celery
+celery = init_celery(app)
 
 # Redis Configuration with error handling
 try:
@@ -78,6 +75,11 @@ except Exception as e:
     print(f"⚠️ Redis connection failed: {e}")
     print("Application will continue without Redis caching")
     redis_client = None
+
+# Background Email Scheduler
+import threading
+import time
+from datetime import datetime
 
 #endpoints for the user
 api.add_resource(UserResource, '/users', '/users/<user_id>')
@@ -105,10 +107,13 @@ api.add_resource(UserReportsResource, '/user-reports')
 api.add_resource(UserBookingHistoryResource, '/user-booking-history')
 api.add_resource(ExportResource, '/export/<export_type>')
 
+#endpoints for Celery tasks
+api.add_resource(TasksResource, '/tasks/<task_type>')
+
 # Configure CORS properly
 CORS(app, origins=["http://localhost:5174", "http://127.0.0.1:5174"])
 
-# Make Redis client available to the app context
+# Redis Client configuration
 app.redis_client = redis_client
 
 # Middleware to track API calls and user activity
@@ -216,19 +221,148 @@ def redis_dashboard():
     except Exception as e:
         return {'msg': 'Error fetching Redis dashboard data', 'error': str(e)}, 500
 
+@app.route('/admin/clear-cache', methods=['POST'])
+def clear_cache():
+    """Clear all application cache - Admin only"""
+    if not redis_client:
+        return {'msg': 'Redis not available'}, 503
+    
+    try:
+        # Clear all application cache keys with broader patterns
+        all_patterns = [
+            'users:*', 'user:*', 'user_session:*',
+            'parking_lot*', 'active_users',
+            '*api_calls*', '*_count*', '*registrations*', 
+            '*logins*', '*reservations*', '*emails*',
+            'rate_limit:*', 'daily_*', 'monthly_*'
+        ]
+        
+        cleared_count = 0
+        for pattern in all_patterns:
+            keys = redis_client.keys(pattern)
+            if keys:
+                redis_client.delete(*keys)
+                cleared_count += len(keys)
+        
+        # Reset important counters to zero
+        redis_client.set('total_api_calls', 0)
+        redis_client.set('total_logins', 0)
+        redis_client.set('total_logouts', 0)
+        redis_client.set('total_registrations', 0)
+        redis_client.set('users_created', 0)
+        redis_client.set('users_deleted', 0)
+        redis_client.set('parking_lots_created', 0)
+        redis_client.set('parking_lots_deleted', 0)
+        redis_client.set('total_reservations', 0)
+        redis_client.set('reservations_cancelled', 0)
+        redis_client.set('emails_sent_total', 0)
+        
+        return {
+            'msg': 'Cache cleared successfully',
+            'cleared_keys': cleared_count,
+            'status': 'success'
+        }, 200
+        
+    except Exception as e:
+        return {'msg': 'Error clearing cache', 'error': str(e)}, 500
+
+@app.route('/admin/reset-database', methods=['POST'])
+def reset_database():
+    """Reset database and clear all cache - DANGEROUS operation"""
+    if not redis_client:
+        return {'msg': 'Redis not available'}, 503
+    
+    try:
+        # First, clear all Redis cache
+        all_patterns = [
+            'users:*', 'user:*', 'user_session:*',
+            'parking_lot*', 'active_users',
+            '*api_calls*', '*_count*', '*registrations*', 
+            '*logins*', '*reservations*', '*emails*',
+            'rate_limit:*', 'daily_*', 'monthly_*',
+            'endpoint_calls:*', 'response_codes:*'
+        ]
+        
+        cleared_count = 0
+        for pattern in all_patterns:
+            keys = redis_client.keys(pattern)
+            if keys:
+                redis_client.delete(*keys)
+                cleared_count += len(keys)
+        
+        # Clear ALL Redis keys to be absolutely sure
+        redis_client.flushdb()
+        
+        # Drop all database tables
+        db.drop_all()
+        print("✅ Database tables dropped")
+        
+        # Recreate all tables
+        db.create_all()
+        print("✅ Database tables recreated")
+        
+        # Create default admin user
+        admin = User(
+            username='admin',
+            email='admin@mad2.com',
+            role='admin',
+            password='Admin@123',
+            phone_number='8709186793'
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Admin user created")
+        
+        # Reset Redis counters
+        redis_client.set('total_api_calls', 0)
+        redis_client.set('total_logins', 0)
+        redis_client.set('total_logouts', 0)
+        redis_client.set('total_registrations', 0)
+        redis_client.set('users_created', 0)
+        redis_client.set('users_deleted', 0)
+        redis_client.set('parking_lots_created', 0)
+        redis_client.set('parking_lots_deleted', 0)
+        redis_client.set('total_reservations', 0)
+        redis_client.set('reservations_cancelled', 0)
+        redis_client.set('emails_sent_total', 0)
+        redis_client.set('app_name', 'Parking Management System', ex=3600)
+        
+        return {
+            'msg': 'Database and cache reset successfully',
+            'cleared_cache_keys': cleared_count,
+            'status': 'success',
+            'admin_created': True
+        }, 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return {'msg': 'Error resetting database and cache', 'error': str(e)}, 500
+
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-        #this will help to create an admin user whenever a new database is created
-        admin = User.query.filter_by(email='admin@mad2.com').first()
-        if not admin:
-            admin = User(
-                username='admin',
-                email='admin@mad2.com',
-                role='admin',
-                password='Admin@123',
-                phone_number='8709186793'
-            )
-            db.session.add(admin)
-        db.session.commit()
+        try:
+            # Create all tables
+            db.create_all()
+            print("✅ Database tables created successfully")
+            
+            # Create admin user if it doesn't exist
+            admin = User.query.filter_by(email='admin@mad2.com').first()
+            if not admin:
+                admin = User(
+                    username='admin',
+                    email='admin@mad2.com',
+                    role='admin',
+                    password='Admin@123',
+                    phone_number='8709186793'
+                )
+                db.session.add(admin)
+                db.session.commit()
+                print("✅ Admin user created successfully")
+            else:
+                print("✅ Admin user already exists")
+                
+        except Exception as e:
+            print(f"❌ Database initialization error: {str(e)}")
+            db.session.rollback()
+        
         app.run(debug=True)

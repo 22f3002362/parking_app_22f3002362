@@ -46,6 +46,21 @@ def cache_delete(key):
             print(f"Redis cache delete error: {e}")
     return False
 
+def clear_all_cache():
+    """Clear all application cache"""
+    redis_client = get_redis_client()
+    if redis_client:
+        try:
+            # Get all cache keys
+            cache_keys = redis_client.keys('users:*') + redis_client.keys('user:*') + redis_client.keys('parking_lot*')
+            if cache_keys:
+                redis_client.delete(*cache_keys)
+            print(f"✅ Cleared {len(cache_keys)} cache keys")
+            return True
+        except Exception as e:
+            print(f"Redis cache clear error: {e}")
+    return False
+
 def increment_counter(key):
     """Increment counter in Redis"""
     redis_client = get_redis_client()
@@ -125,16 +140,14 @@ class UserResource(Resource):
                         'phone_number': user.phone_number if user.phone_number else None
                     }
                 }
-                # Cache user data for 10 minutes
-                cache_set(cache_key, user_data, 600)
+                # Cache user data for 10 seconds only to prevent stale data
+                cache_set(cache_key, user_data, 10)
                 return user_data, 200
             return {'msg': 'User not found'}, 404
         
-        # Only admin can get all users
         if current_user.role != 'admin':
             return {'msg': 'Access denied. Admin only.'}, 403
         
-        # Try to get users list from cache
         cache_key = 'users:all'
         cached_users = cache_get(cache_key)
         if cached_users:
@@ -153,8 +166,8 @@ class UserResource(Resource):
             })
         
         response_data = {'msg': 'Users retrieved successfully', 'users': user_list}
-        # Cache users list for 5 minutes
-        cache_set(cache_key, response_data, 300)
+        # Cache users list for 10 seconds only to prevent stale data
+        cache_set(cache_key, response_data, 10)
         return response_data, 200
     
     def post(self):
@@ -169,15 +182,19 @@ class UserResource(Resource):
         if not email or not username or not password:
             return {'msg': 'Please provide email, username, and password'}, 400
         
-        # Check if user already exists
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            return {'msg': 'User with this email already exists'}, 400
+        # Normalize email and username
+        email = email.lower().strip()
+        username = username.strip()
         
-        # Check if username already exists
-        existing_username = User.query.filter_by(username=username).first()
+        # Check if user already exists (case-insensitive)
+        existing_user = User.query.filter(User.email.ilike(email)).first()
+        if existing_user:
+            return {'msg': f'User with email {email} already exists'}, 400
+        
+        # Check if username already exists (case-insensitive)
+        existing_username = User.query.filter(User.username.ilike(username)).first()
         if existing_username:
-            return {'msg': 'Username already exists'}, 400
+            return {'msg': f'Username {username} already exists'}, 400
         
         # Check if vehicle number already exists (only if provided)
         if vehicle_number:
@@ -304,19 +321,75 @@ class UserResource(Resource):
         if not user:
             return {'msg': 'User not found'}, 404
         
+        # Prevent deletion of admin users (optional safety check)
+        if user.role == 'admin':
+            return {'msg': 'Cannot delete admin users for security reasons'}, 403
+        
         try:
+            # Handle related records before deleting user
+            
+            # 1. Check for active reservations
+            active_reservations = ReserveSpot.query.filter_by(user_id=user_id).filter(
+                ReserveSpot.leaving_time.is_(None)
+            ).all()
+            
+            if active_reservations:
+                # Release all active parking spots and complete reservations
+                for reservation in active_reservations:
+                    spot = ParkingSpot.query.get(reservation.spot_id)
+                    if spot:
+                        spot.status = 'available'
+                        spot.user_id = None
+                        
+                        # Update available slots in the parking lot
+                        lot = ParkingLot.query.get(spot.lot_id)
+                        if lot:
+                            lot.available_slots += 1
+                    
+                    # Mark reservation as completed with current time
+                    reservation.leaving_time = datetime.now()
+                    
+                    # Calculate final cost if not already set
+                    if reservation.parking_cost == 0:
+                        lot = ParkingLot.query.get(spot.lot_id) if spot else None
+                        if lot:
+                            duration_hours = (reservation.leaving_time - reservation.parking_time).total_seconds() / 3600
+                            reservation.parking_cost = duration_hours * lot.price
+            
+            # 2. Clear user_id from any parking spots still assigned to this user
+            assigned_spots = ParkingSpot.query.filter_by(user_id=user_id).all()
+            for spot in assigned_spots:
+                spot.user_id = None
+                spot.status = 'available'
+                
+                # Update available slots
+                lot = ParkingLot.query.get(spot.lot_id)
+                if lot:
+                    lot.available_slots += 1
+            
+            # 3. Delete ALL reservations (both active and historical) for this user
+            # This is necessary to avoid foreign key constraint violations
+            all_reservations = ReserveSpot.query.filter_by(user_id=user_id).all()
+            for reservation in all_reservations:
+                db.session.delete(reservation)
+            
+            # 4. Now safe to delete the user
             db.session.delete(user)
             db.session.commit()
             
-            # Invalidate user cache when deleted
+            # Invalidate caches
             cache_delete(f'user:{user_id}')
             cache_delete('users:all')
+            cache_delete('parking_lots:all')  # Since we may have updated availability
             increment_counter('users_deleted')
             
-            return {'msg': 'User deleted successfully'}, 200
+            return {'msg': 'User deleted successfully. Any active reservations have been completed, parking spots released, and reservation history removed.'}, 200
         except Exception as e:
             db.session.rollback()
-            return {'msg': 'Error deleting user', 'error': str(e)}, 500
+            import traceback
+            print(f"Error deleting user {user_id}: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return {'msg': 'Error deleting user', 'error': str(e), 'details': traceback.format_exc()}, 500
 
 
 class ParkingLotResource(Resource):
@@ -346,8 +419,8 @@ class ParkingLotResource(Resource):
                         'available_slots': lot.available_slots
                     }
                 }
-                # Cache parking lot data for 15 minutes
-                cache_set(cache_key, lot_data, 900)
+                # Cache parking lot data for 10 seconds only to prevent stale data
+                cache_set(cache_key, lot_data, 10)
                 return lot_data, 200
             return {'msg': 'Parking lot not found'}, 404
         
@@ -371,8 +444,8 @@ class ParkingLotResource(Resource):
             })
         
         response_data = {'msg': 'Parking lots retrieved successfully', 'lots': lot_list}
-        # Cache parking lots for 10 minutes (they change frequently due to availability)
-        cache_set(cache_key, response_data, 600)
+        # Cache parking lots for 10 seconds only (they change frequently)
+        cache_set(cache_key, response_data, 10)
         return response_data, 200
     
     @jwt_required()
@@ -883,27 +956,37 @@ class RegisterResource(Resource):
         if not email or not username or not password:
             return {'msg': 'Please provide email, username, and password'}, 400
         
-        # Check if user already exists
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            return {'msg': 'User with this email already exists'}, 409
+        # Normalize email to lowercase for consistent checking
+        email = email.lower().strip()
+        username = username.strip()
         
-        # Check if username already exists
-        existing_username = User.query.filter_by(username=username).first()
-        if existing_username:
-            return {'msg': 'Username already exists'}, 409
-        
-        # Check if vehicle number already exists (only if provided)
-        if vehicle_number:
-            existing_vehicle = User.query.filter_by(vehicle_number=vehicle_number).first()
-            if existing_vehicle:
-                return {'msg': 'Vehicle number already exists'}, 409
-        
-        # Check if phone number already exists (only if provided)
-        if phone_number:
-            existing_phone = User.query.filter_by(phone_number=phone_number).first()
-            if existing_phone:
-                return {'msg': 'Phone number already exists'}, 409
+        try:
+            # Check if user already exists (case-insensitive email check)
+            existing_user = User.query.filter(User.email.ilike(email)).first()
+            if existing_user:
+                return {'msg': f'User with email {email} already exists'}, 409
+            
+            # Check if username already exists (case-insensitive)
+            existing_username = User.query.filter(User.username.ilike(username)).first()
+            if existing_username:
+                return {'msg': f'Username {username} already exists'}, 409
+            
+            # Check if vehicle number already exists (only if provided)
+            if vehicle_number and vehicle_number.strip():
+                vehicle_number = vehicle_number.strip()
+                existing_vehicle = User.query.filter_by(vehicle_number=vehicle_number).first()
+                if existing_vehicle:
+                    return {'msg': 'Vehicle number already exists'}, 409
+            
+            # Check if phone number already exists (only if provided)
+            if phone_number and phone_number.strip():
+                phone_number = phone_number.strip()
+                existing_phone = User.query.filter_by(phone_number=phone_number).first()
+                if existing_phone:
+                    return {'msg': 'Phone number already exists'}, 409
+        except Exception as e:
+            print(f"Error during user validation: {str(e)}")
+            return {'msg': 'Database error during validation'}, 500
         
         # Create new user
         user = User(
@@ -1074,6 +1157,15 @@ class BookingResource(Resource):
             increment_counter('total_reservations')
             increment_counter(f'daily_reservations:{datetime.now().strftime("%Y-%m-%d")}')
             
+            # Send booking confirmation email synchronously (for immediate delivery)
+            try:
+                from tasks import send_booking_confirmation_email
+                # Call directly instead of using .delay() for immediate email sending
+                result = send_booking_confirmation_email(reservation.id)
+                print(f"✅ Booking confirmation email sent: {result}")
+            except Exception as email_error:
+                print(f"⚠️ Failed to send booking confirmation email: {email_error}")
+            
             return {
                 'msg': 'Parking spot booked successfully',
                 'reservation': {
@@ -1200,6 +1292,15 @@ class BookingResource(Resource):
                 # Invalidate parking lots cache since availability changed
                 cache_delete('parking_lots:all')
                 cache_delete(f'parking_lot:{lot.id}')
+                
+                # Send parking release receipt email synchronously (for immediate delivery)
+                try:
+                    from tasks import send_parking_release_email
+                    # Call directly instead of using .delay() for immediate email sending
+                    result = send_parking_release_email(reservation.id)
+                    print(f"✅ Parking release email sent: {result}")
+                except Exception as email_error:
+                    print(f"⚠️ Failed to send parking release email: {email_error}")
                 
                 return {
                     'msg': 'Parking spot released successfully',
@@ -1642,6 +1743,132 @@ class UserBookingHistoryResource(Resource):
             
         except Exception as e:
             return {'msg': 'Error retrieving booking history', 'error': str(e)}, 500
+
+
+class TasksResource(Resource):
+    @jwt_required()
+    def post(self, task_type):
+        """Trigger Celery tasks"""
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        if not current_user:
+            return {'msg': 'User not found'}, 404
+        
+        try:
+            if task_type == 'export-csv':
+                # User triggered CSV export
+                from tasks import export_user_data_csv
+                task = export_user_data_csv.delay(current_user_id)
+                
+                return {
+                    'msg': 'CSV export started successfully',
+                    'task_id': task.id,
+                    'status': 'processing',
+                    'message': 'Your export is being processed. You will receive an email when it\'s ready.'
+                }, 202
+                
+            elif task_type == 'test-daily-reminder' and current_user.role == 'admin':
+                # Admin can trigger test daily reminder
+                try:
+                    from tasks import send_daily_reminders
+                    
+                    # Try async first
+                    try:
+                        task = send_daily_reminders.delay()
+                        return {
+                            'msg': 'Daily reminder test started (async)',
+                            'task_id': task.id,
+                            'status': 'processing'
+                        }, 202
+                    except Exception as async_error:
+                        # If async fails, run synchronously
+                        print(f"Async failed, running sync: {async_error}")
+                        result = send_daily_reminders()
+                        return {
+                            'msg': 'Daily reminder test completed (sync)',
+                            'result': result,
+                            'status': 'completed'
+                        }, 200
+                        
+                except Exception as e:
+                    return {'msg': 'Failed to run daily reminder', 'error': str(e)}, 500
+                
+            elif task_type == 'test-monthly-report' and current_user.role == 'admin':
+                # Admin can trigger test monthly report  
+                try:
+                    from tasks import send_monthly_reports
+                    
+                    # Try async first
+                    try:
+                        task = send_monthly_reports.delay()
+                        return {
+                            'msg': 'Monthly report test started (async)',
+                            'task_id': task.id,
+                            'status': 'processing'
+                        }, 202
+                    except Exception as async_error:
+                        # If async fails, run synchronously
+                        print(f"Async failed, running sync: {async_error}")
+                        result = send_monthly_reports()
+                        return {
+                            'msg': 'Monthly report test completed (sync)',
+                            'result': result,
+                            'status': 'completed'
+                        }, 200
+                        
+                except Exception as e:
+                    return {'msg': 'Failed to run monthly report', 'error': str(e)}, 500
+                
+            else:
+                return {'msg': 'Invalid task type or insufficient permissions'}, 400
+                
+        except Exception as e:
+            return {'msg': 'Failed to start task', 'error': str(e)}, 500
+    
+    @jwt_required()
+    def get(self, task_type):
+        """Get task status"""
+        task_id = request.args.get('task_id')
+        if not task_id:
+            return {'msg': 'Task ID is required'}, 400
+        
+        try:
+            from celery.result import AsyncResult
+            from tasks import celery
+            
+            task_result = AsyncResult(task_id, app=celery)
+            
+            if task_result.state == 'PENDING':
+                response = {
+                    'state': task_result.state,
+                    'status': 'Task is waiting to be processed'
+                }
+            elif task_result.state == 'PROGRESS':
+                response = {
+                    'state': task_result.state,
+                    'status': task_result.info.get('status', ''),
+                    'current': task_result.info.get('current', 0),
+                    'total': task_result.info.get('total', 1)
+                }
+            elif task_result.state == 'SUCCESS':
+                response = {
+                    'state': task_result.state,
+                    'status': 'Task completed successfully',
+                    'result': task_result.result
+                }
+            else:
+                # Something went wrong
+                response = {
+                    'state': task_result.state,
+                    'status': 'Task failed',
+                    'error': str(task_result.info)
+                }
+            
+            return response, 200
+            
+        except Exception as e:
+            return {'msg': 'Failed to get task status', 'error': str(e)}, 500
 
 
 class ExportResource(Resource):
