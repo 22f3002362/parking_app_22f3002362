@@ -1,0 +1,749 @@
+# ParkEase - Smart Parking Management System API Documentation
+# OpenAPI 3.0 specification for all endpoints
+
+openapi: 3.0.3
+info:
+  title: ParkEase API
+  description: |
+    **ParkEase Smart Parking Management System API**
+
+    A comprehensive RESTful API for managing parking lots, bookings, users, and analytics.
+    Built with Flask and designed for real-time parking management with JWT authentication.
+  version: 1.0.0
+  contact:
+    name: Student 22f3002362
+    email: 22f3002362@example.com
+  license:
+    name: MAD2 Project License
+    url: https://example.com/license
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+  - url: https://parkease-api.example.com
+    description: Production server
+
+# Security Schemes
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /login endpoint
+
+  schemas:
+    # User Schemas
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique user identifier
+        username:
+          type: string
+          description: User's unique username
+        email:
+          type: string
+          format: email
+          description: User's email address
+        role:
+          type: string
+          enum: [user, admin]
+          description: User role for access control
+        vehicle_number:
+          type: string
+          description: User's vehicle registration number
+        phone_number:
+          type: string
+          description: User's contact number
+        created_at:
+          type: string
+          format: date-time
+
+    # Authentication Schemas
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+        user:
+          $ref: "#/components/schemas/User"
+        message:
+          type: string
+
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+        - vehicle_number
+        - phone_number
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        vehicle_number:
+          type: string
+        phone_number:
+          type: string
+
+    # Parking Lot Schemas
+    ParkingLot:
+      type: object
+      properties:
+        id:
+          type: integer
+        location_name:
+          type: string
+          description: Name of the parking location
+        price:
+          type: number
+          format: float
+          description: Hourly parking rate
+        address:
+          type: string
+          description: Full address of parking lot
+        pincode:
+          type: string
+          description: Area pincode
+        number_of_slots:
+          type: integer
+          description: Total parking slots
+        available_slots:
+          type: integer
+          description: Currently available slots
+        created_at:
+          type: string
+          format: date-time
+
+    ParkingLotRequest:
+      type: object
+      required:
+        - location_name
+        - price
+        - address
+        - pincode
+        - number_of_slots
+      properties:
+        location_name:
+          type: string
+        price:
+          type: number
+          format: float
+        address:
+          type: string
+        pincode:
+          type: string
+        number_of_slots:
+          type: integer
+
+    # Booking Schemas
+    BookingRequest:
+      type: object
+      required:
+        - parking_lot_id
+        - duration_hours
+      properties:
+        parking_lot_id:
+          type: integer
+        duration_hours:
+          type: number
+          format: float
+          description: Expected parking duration
+
+    BookingResponse:
+      type: object
+      properties:
+        reservation_id:
+          type: integer
+        spot_number:
+          type: integer
+        parking_lot:
+          $ref: "#/components/schemas/ParkingLot"
+        parking_time:
+          type: string
+          format: date-time
+        estimated_cost:
+          type: number
+          format: float
+        status:
+          type: string
+          enum: [reserved, occupied, completed]
+
+    # Reservation Schemas
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        spot_id:
+          type: integer
+        parking_lot:
+          $ref: "#/components/schemas/ParkingLot"
+        parking_time:
+          type: string
+          format: date-time
+        leaving_time:
+          type: string
+          format: date-time
+          nullable: true
+        parking_cost:
+          type: number
+          format: float
+        transaction_id:
+          type: string
+          nullable: true
+        payment_method:
+          type: string
+          enum: [UPI, Card, Cash]
+          nullable: true
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+
+    # Payment Schemas
+    PaymentRequest:
+      type: object
+      required:
+        - reservation_id
+        - payment_method
+      properties:
+        reservation_id:
+          type: integer
+        payment_method:
+          type: string
+          enum: [UPI, Card, Cash]
+        transaction_id:
+          type: string
+          description: External payment transaction ID
+
+    # Analytics Schemas
+    AdminAnalytics:
+      type: object
+      properties:
+        total_revenue:
+          type: number
+          format: float
+        total_bookings:
+          type: integer
+        total_users:
+          type: integer
+        total_parking_lots:
+          type: integer
+        occupancy_rate:
+          type: number
+          format: float
+          description: Current occupancy percentage
+        daily_revenue:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              revenue:
+                type: number
+                format: float
+        popular_locations:
+          type: array
+          items:
+            type: object
+            properties:
+              location_name:
+                type: string
+              booking_count:
+                type: integer
+
+    UserAnalytics:
+      type: object
+      properties:
+        total_bookings:
+          type: integer
+        total_spent:
+          type: number
+          format: float
+        favorite_location:
+          type: string
+        average_parking_duration:
+          type: number
+          format: float
+          description: Average duration in hours
+        monthly_spending:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: string
+              amount:
+                type: number
+                format: float
+
+    # Error Schema
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: integer
+          description: HTTP status code
+
+# API Endpoints
+paths:
+  # Authentication Endpoints
+  /login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate JWT token
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /users:
+    post:
+      tags:
+        - Authentication
+      summary: User registration
+      description: Register a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user_id:
+                    type: integer
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # Parking Lot Management
+  /parking-lots:
+    get:
+      tags:
+        - Parking Lots
+      summary: Get all parking lots
+      description: Retrieve list of all parking lots with availability
+      responses:
+        "200":
+          description: List of parking lots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParkingLot"
+
+    post:
+      tags:
+        - Parking Lots
+      summary: Create parking lot
+      description: Create a new parking lot (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParkingLotRequest"
+      responses:
+        "201":
+          description: Parking lot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingLot"
+        "403":
+          description: Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /parking-lots/{id}:
+    put:
+      tags:
+        - Parking Lots
+      summary: Update parking lot
+      description: Update parking lot details (Admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParkingLotRequest"
+      responses:
+        "200":
+          description: Parking lot updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingLot"
+
+    delete:
+      tags:
+        - Parking Lots
+      summary: Delete parking lot
+      description: Remove parking lot (Admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Parking lot deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  # Booking System
+  /booking/book-spot:
+    post:
+      tags:
+        - Booking
+      summary: Book a parking spot
+      description: Reserve a parking spot at selected location
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingRequest"
+      responses:
+        "201":
+          description: Spot booked successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: No spots available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /booking/occupy-spot:
+    post:
+      tags:
+        - Booking
+      summary: Mark spot as occupied
+      description: Check-in to reserved parking spot
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reservation_id
+              properties:
+                reservation_id:
+                  type: integer
+      responses:
+        "200":
+          description: Spot occupied successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  check_in_time:
+                    type: string
+                    format: date-time
+
+  /booking/release-spot:
+    post:
+      tags:
+        - Booking
+      summary: Release parking spot
+      description: Check-out and complete parking session with payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "200":
+          description: Spot released and payment processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  total_cost:
+                    type: number
+                    format: float
+                  duration_hours:
+                    type: number
+                    format: float
+                  receipt_email_sent:
+                    type: boolean
+
+  # Reservation Management
+  /reservations:
+    get:
+      tags:
+        - Reservations
+      summary: Get all reservations
+      description: Get all reservations (Admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of all reservations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reservation"
+
+  /users/{user_id}/reservations:
+    get:
+      tags:
+        - Reservations
+      summary: Get user reservations
+      description: Get reservations for specific user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User's reservations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reservation"
+
+  /reservations/{id}:
+    delete:
+      tags:
+        - Reservations
+      summary: Cancel reservation
+      description: Cancel an active reservation
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reservation cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  refund_amount:
+                    type: number
+                    format: float
+
+  # Analytics & Reports
+  /reports:
+    get:
+      tags:
+        - Analytics
+      summary: Get admin analytics
+      description: Comprehensive analytics dashboard data (Admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAnalytics"
+
+  /user-reports:
+    get:
+      tags:
+        - Analytics
+      summary: Get user analytics
+      description: User's personal parking statistics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAnalytics"
+
+  /export/parking-details:
+    get:
+      tags:
+        - Export
+      summary: Export parking details
+      description: Download parking lot details as CSV (Admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: CSV file download
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+
+  /export/monthly-report:
+    get:
+      tags:
+        - Export
+      summary: Generate monthly report
+      description: Download detailed monthly report (Admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Month for report (YYYY-MM format)
+      responses:
+        "200":
+          description: Monthly report file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+# API Tags
+tags:
+  - name: Authentication
+    description: User authentication and registration
+  - name: Parking Lots
+    description: Parking lot management operations
+  - name: Booking
+    description: Parking spot booking and management
+  - name: Reservations
+    description: Reservation tracking and management
+  - name: Analytics
+    description: Analytics and reporting
+  - name: Export
+    description: Data export functionality
+
+# Additional API Information
+externalDocs:
+  description: Project Documentation
+  url: https://github.com/22f3002362/parking_app_22f3002362/blob/main/README.md
