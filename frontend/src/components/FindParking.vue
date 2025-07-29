@@ -898,7 +898,7 @@ export default {
   height: 100%;
   z-index: 1;
   overflow: hidden;
-  background-image: url('/car1.png');
+  background-image: url('/car1.webp');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

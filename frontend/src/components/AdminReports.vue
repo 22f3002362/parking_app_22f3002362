@@ -1418,14 +1418,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* All the CSS from your AdminDashboard.vue should be copied here,
-   and then removed from AdminDashboard.vue.
-   I'm including a placeholder for it here.
-   Ensure the image path for car1.png is correct relative to this component's usage.
-*/
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
 
-/* Base Container - Landing Page Inspired */
+/* Base Container */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -1433,18 +1428,18 @@ onMounted(() => {
 }
 
 /* Base Container */
-.reports-container { /* Renamed from admin-dashboard-container */
+.reports-container {
   font-family: 'Poppins', sans-serif;
   background: linear-gradient(135deg, rgba(26, 45, 67, 0.95) 0%, rgba(45, 64, 89, 0.95) 50%, rgba(64, 83, 111, 0.95) 100%);
   color: #ffffff;
   min-height: 100vh;
   position: relative;
-  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
 }
 
-/* Admin Navbar (Copied from AdminDashboard.vue) */
+/* Admin Navbar  */
 .admin-navbar {
   position: fixed;
   top: 0;
@@ -1762,7 +1757,7 @@ onMounted(() => {
   height: 100%;
   z-index: 1;
   overflow: hidden;
-  background-image: url('/car1.png');
+  background-image: url('/car1.webp');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
