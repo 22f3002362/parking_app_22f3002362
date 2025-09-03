@@ -5,7 +5,7 @@ const API_BASE_URL = '/api'; // This will be proxied to the Flask backend
 
 // Create axios instance with default configuration
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: import.meta.env.VITE_BACKEND_URL,
   headers: {
     'Content-Type': 'application/json',
   },
