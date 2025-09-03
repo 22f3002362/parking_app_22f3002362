@@ -20,7 +20,6 @@ from controllers import (
     UserBookingHistoryResource,
     ExportResource,
     TasksResource,
-    DebugResource
 )
 from flask_cors import CORS
 from datetime import timedelta, datetime

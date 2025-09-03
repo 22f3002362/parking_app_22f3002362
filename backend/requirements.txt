@@ -10,3 +10,4 @@ celery[redis]==5.3.1
 requests
 python-dotenv
 email-validator
+gunicorn
