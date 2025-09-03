@@ -110,7 +110,7 @@ api.add_resource(ExportResource, '/export/<export_type>')
 api.add_resource(TasksResource, '/tasks/<task_type>')
 
 # Configure CORS properly
-CORS(app, origins=["http://localhost:5174", "http://127.0.0.1:5174"])
+CORS(app, origins=["http://localhost:5174", "http://127.0.0.1:5174", "https://parkease-mad2.vercel.app"])
 
 # Redis Client configuration
 app.redis_client = redis_client
