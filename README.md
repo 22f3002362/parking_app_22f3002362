@@ -111,7 +111,65 @@ parking_app_22f3002362/
 
 ---
 
-## 🛠️ **Technology Stack**
+## � **Screenshots**
+
+### **User Interface**
+
+#### **Landing Page**
+
+![Landing Page](screenshots/landing-page.png)
+_Clean and modern landing page with intuitive navigation_
+
+#### **Login Page**
+
+![Login Page](screenshots/login-page.png)
+_Clean and modern login page with glass morphism effect_
+
+#### **User Dashboard**
+
+![User Dashboard](screenshots/user-dashboard.png)
+_Comprehensive user dashboard showing booking history and quick actions_
+
+#### **Find Parking**
+
+![Find Parking](screenshots/find-parking.png)
+_Smart parking search with real-time availability_
+
+#### **Booking History of Users**
+
+![History Bookings](screenshots/user-history.png)
+_Full Booking History for users to manage and track their daily bookings and spendings_
+
+#### **User Reports & Analytics**
+
+![User Reports](screenshots/user-report.png)
+_Detailed reports and analytics for users_
+
+### **Admin Interface**
+
+#### **Admin Dashboard**
+
+![Admin Dashboard](screenshots/admin-dashboard.png)
+_Powerful admin dashboard with analytics and metrics_
+
+#### **Parking Lot Management**
+
+![Parking Lot Management](screenshots/parking-lot.png)
+_Easy-to-use parking lot management interface_
+
+#### **User Management**
+
+![User Management](screenshots/user-management.png)
+_Comprehensive user management system_
+
+#### **Reports & Analytics**
+
+![Reports](screenshots/user-reports.png)
+_Detailed reports and analytics for business insights_
+
+---
+
+## �🛠️ **Technology Stack**
 
 ### **Frontend Technologies**
 
