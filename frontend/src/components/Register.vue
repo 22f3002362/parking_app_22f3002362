@@ -13,10 +13,8 @@
     <div class="main-content">
       <div class="register-section">
         <div class="brand-header">
-          <div class="brand-logo">
-            <img src="../assets/P.png" alt="ParkEase Logo" class="logo-img">
-          </div>
-          <h1 class="brand-title">ParkEase</h1>
+          <div class="brand-logo">P</div>
+          <h1 class="brand-title">ParkSmart</h1>
           <p class="brand-subtitle">Create your account and start parking smart!</p>
         </div>
 
@@ -389,17 +387,19 @@ onMounted(() => {
 }
 
 .brand-logo {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #0077be, #00a8e8);
+  border-radius: 50%;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #ffffff;
+  font-weight: bold;
+  margin: 0 0 1rem 7.6rem;
+  box-shadow: 0 10px 20px rgba(0, 119, 190, 0.4);
 }
-
-.brand-logo .logo-img {
-  width: 200px;
-  height: 200px;
-  object-fit: cover;
-}
-
 
 .brand-title {
   font-size: 2rem;
