@@ -32,8 +32,19 @@ load_dotenv()
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///parking_app.db'
-app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+
+# Database configuration - supports both SQLite (local) and PostgreSQL (production)
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    # Fix for Render.com PostgreSQL URL (postgres:// -> postgresql://)
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///parking_app.db'
+
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=12)
 
 # MailHog configuration for development
@@ -109,8 +120,17 @@ api.add_resource(ExportResource, '/export/<export_type>')
 #endpoints for Celery tasks
 api.add_resource(TasksResource, '/tasks/<task_type>')
 
-# Configure CORS properly
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173", "https://parkease-mad2.vercel.app"])
+# Configure CORS properly - add your Render.com frontend URL here
+FRONTEND_URL = os.getenv('FRONTEND_URL', '')
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+]
+if FRONTEND_URL:
+    allowed_origins.append(FRONTEND_URL)
+CORS(app, origins=allowed_origins)
 
 # Redis Client configuration
 app.redis_client = redis_client

@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-// API Configuration - use relative URLs to work with Vite proxy
-const API_BASE_URL = '/api'; // This will be proxied to the Flask backend
+// API Configuration
+// In development: uses '/api' which is proxied to Flask backend by Vite
+// In production: uses VITE_API_URL environment variable (your Render.com backend URL)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Create axios instance with default configuration
 const apiClient = axios.create({
