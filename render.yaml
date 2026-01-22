@@ -9,7 +9,7 @@ services:
   - type: web
     name: parkease-api
     runtime: python
-    buildCommand: cd backend && chmod +x build.sh && ./build.sh
+    buildCommand: cd backend && pip install -r requirements.txt && python init_db.py
     startCommand: cd backend && gunicorn app:app
     envVars:
       - key: DATABASE_URL
@@ -20,23 +20,4 @@ services:
         generateValue: true
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: FRONTEND_URL
-        value: https://parkease-frontend.onrender.com
     healthCheckPath: /
-
-  # Frontend Static Site
-  - type: static
-    name: parkease-frontend
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
-    envVars:
-      - key: VITE_API_URL
-        value: https://parkease-api.onrender.com
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: public, max-age=0, must-revalidate
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
