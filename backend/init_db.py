@@ -19,19 +19,19 @@ def init_database():
             print("Database tables created successfully!")
 
             # Create admin user if it doesn't exist
-            admin = User.query.filter_by(email='admin@parkease.com').first()
+            admin = User.query.filter_by(email='admin@mad2.com').first()
             if not admin:
                 admin = User(
                     username='admin',
-                    email='admin@parkease.com',
+                    email='admin@mad2.com',
                     role='admin',
                     password='Admin@123',  # Change this in production!
-                    phone_number='0000000000'
+                    phone_number='8709186793'
                 )
                 db.session.add(admin)
                 db.session.commit()
                 print("Admin user created successfully!")
-                print("  Email: admin@parkease.com")
+                print("  Email: admin@mad2.com")
                 print("  Password: Admin@123")
                 print("  ** IMPORTANT: Change this password after first login! **")
             else:
